@@ -74,4 +74,32 @@ class Transaction(db.Model):
     date = db.Column(db.Date, nullable=False, default=date.today)
     description = db.Column(db.String(200), nullable=True)
 
-    household_id_
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=True)  # NULL = shared transaction
+    category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=True)
+
+    def is_personal(self):
+        return self.user_id is not None
+
+    def __repr__(self):
+        scope = "Personal" if self.is_personal() else "Shared"
+        return f"<Transaction {self.amount} ({scope})>"
+
+# -------------------
+# Budget Model
+# -------------------
+class Budget(db.Model):
+    __tablename__ = "budget"
+    budget_id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.Date, nullable=False)
+    limit_amount = db.Column(db.Float, nullable=False)
+
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=True)  # NULL = household budget
+
+    def is_personal(self):
+        return self.user_id is not None
+
+    def __repr__(self):
+        scope = "Personal" if self.is_personal() else "Household"
+        return f"<Budget {scope} {self.limit_amount} for {self.month}>"
