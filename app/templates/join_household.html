@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Join Household</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="header">
+      <h1>Join a household</h1>
+      <p>Enter the invite code you received</p>
+    </div>
+
+    <div class="form-body">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST">
+        <div class="form-group">
+          <label for="invite_code">Invite code</label>
+          <input
+            type="text"
+            id="invite_code"
+            name="invite_code"
+            placeholder="Enter invite code"
+            required
+            autocomplete="off"
+          >
+        </div>
+
+        <button type="submit" class="btn-login">Join household</button>
+      </form>
+
+      <div class="signup-link">
+        <a href="{{ url_for('main.create_household') }}">Create a new household instead</a>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

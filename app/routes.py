@@ -51,10 +51,28 @@ def create_household():
     if form.validate_on_submit():
         household = Household(name=form.name.data, invite_code=form.invite_code.data)
         db.session.add(household)
-        db.session.commit()
-        # Attach current user to the household
+        db.session.flush()  # INSERT household so household_id is set, without committing
         current_user.household_id = household.household_id
         db.session.commit()
         flash(f"Household '{household.name}' created!", "success")
         return redirect(url_for("main.index"))
     return render_template("create_household.html", form=form)
+
+
+# Join Household
+@bp.route("/join_household", methods=["GET", "POST"])
+@login_required
+def join_household():
+    if request.method == "POST":
+        code = request.form.get("invite_code")
+        household = Household.query.filter_by(invite_code=code).first()
+
+        if household:
+            current_user.household_id = household.household_id
+            db.session.commit()
+            flash("Successfully joined household!", "success")
+            return redirect(url_for("main.index"))
+        else:
+            flash("Invalid invite code.", "danger")
+
+    return render_template("join_household.html")
