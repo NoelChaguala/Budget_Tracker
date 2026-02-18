@@ -1,65 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sign In</title>
-  <link rel="stylesheet" href="../static/css/styles.css">
-</head>
-<body>
+{% extends "base.html" %}
 
-  <div class="login-container">
-    <div class="header">
-      <h1>Welcome back</h1>
-      <p>Please enter your details</p>
-    </div>
+{% block title %}Sign In{% endblock %}
 
-    <div class="form-body">
-      <form>
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input 
-            type="email" 
-            id="email" 
-            name="email" 
-            placeholder="name@example.com" 
-            required 
-            autocomplete="email"
-          >
-        </div>
+{% block content %}
 
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input 
-            type="password" 
-            id="password" 
-            name="password" 
-            placeholder="••••••••" 
-            required 
-            autocomplete="current-password"
-          >
-        </div>
-
-        <div class="options">
-          <label class="remember">
-            <input type="checkbox" name="remember">
-            Remember me
-          </label>
-          <span class="forgot">
-            <a href="#">Forgot password?</a>
-          </span>
-        </div>
-
-        <button type="submit" class="btn-login">
-          Sign in
-        </button>
-      </form>
-
-      <div class="signup-link">
-        Don't have an account? <a href="#">Sign up</a>
-      </div>
-    </div>
+<div class="login-container">
+  <div class="header">
+    <h1>Welcome back</h1>
+    <p>Please enter your details</p>
   </div>
 
-</body>
-</html>
+  <div class="form-body">
+    <form method="POST">
+      {{ form.hidden_tag() }}
+
+      <div class="form-group">
+        {{ form.username.label }}
+        {{ form.username(class="input-field") }}
+      </div>
+
+      <div class="form-group">
+        {{ form.password.label }}
+        {{ form.password(class="input-field") }}
+      </div>
+
+      <button type="submit" class="btn-login">
+        Sign in
+      </button>
+    </form>
+
+    <div class="signup-link">
+      Don't have an account?
+      <a href="{{ url_for('main.register') }}">Sign up</a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,15 +1,30 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import db, User, Household
+from .models import db, User, Household, Transaction, Budget, Category
 from .forms import RegistrationForm, LoginForm, HouseholdForm
 
 bp = Blueprint("main", __name__)
 
-# Home / Dashboard
+# Home / Dashboard — household data visible to joined users
 @bp.route("/")
 @login_required
 def index():
-    return render_template("index.html", user=current_user)
+    household = getattr(current_user, "household", None)
+    if not household:
+        return render_template("index.html", user=current_user, household=None)
+
+    transactions = Transaction.query.filter_by(household_id=household.household_id).order_by(Transaction.date.desc()).limit(20).all()
+    budgets = Budget.query.filter_by(household_id=household.household_id).order_by(Budget.month.desc()).limit(10).all()
+    categories = Category.query.filter_by(household_id=household.household_id).order_by(Category.name).all()
+
+    return render_template(
+        "index.html",
+        user=current_user,
+        household=household,
+        transactions=transactions,
+        budgets=budgets,
+        categories=categories,
+    )
 
 # User Registration
 @bp.route("/register", methods=["GET", "POST"])
