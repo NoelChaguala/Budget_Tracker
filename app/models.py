@@ -28,12 +28,12 @@ class Household(db.Model):
 # -------------------
 class User(db.Model, UserMixin):
     __tablename__ = "user"
-    user_id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
 
-    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)
 
     # Relationships
     personal_transactions = db.relationship("Transaction", backref="user", lazy=True)
@@ -75,7 +75,7 @@ class Transaction(db.Model):
     description = db.Column(db.String(200), nullable=True)
 
     household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=True)  # NULL = shared transaction
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)  # NULL = shared transaction
     category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=True)
 
     def is_personal(self):
@@ -95,7 +95,7 @@ class Budget(db.Model):
     limit_amount = db.Column(db.Float, nullable=False)
 
     household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=True)  # NULL = household budget
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)  # NULL = household budget
 
     def is_personal(self):
         return self.user_id is not None
