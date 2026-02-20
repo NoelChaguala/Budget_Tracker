@@ -145,6 +145,33 @@ def join_household():
     return render_template("join_household.html")
 
 
+# Add Transaction
+@bp.route("/transaction/add", methods=["GET", "POST"])
+@login_required
+def add_transaction():
+    if request.method == "POST":
+        amount = float(request.form.get("amount"))
+        description = request.form.get("description")
+        t_type = request.form.get("type")
+        raw_household_id = request.form.get("household_id")
+        household_id = int(raw_household_id) if (raw_household_id and raw_household_id.strip()) else None
+
+        transaction = Transaction(
+            amount=amount,
+            description=description,
+            type=t_type,
+            user_id=current_user.id,
+            household_id=household_id,
+        )
+        db.session.add(transaction)
+        db.session.commit()
+
+        flash("Transaction added successfully!", "success")
+        return redirect(url_for("main.personal_dashboard"))
+
+    return render_template("add_transaction.html")
+
+
 # Settings (placeholder)
 @bp.route("/settings")
 @login_required

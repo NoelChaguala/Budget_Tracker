@@ -15,6 +15,7 @@
 
     <nav class="sidebar-nav">
       <a href="{{ url_for('main.personal_dashboard') }}" class="sidebar-link {% if request.endpoint == 'main.personal_dashboard' %}active{% endif %}">🏠 Personal Dashboard</a>
+      <a href="{{ url_for('main.add_transaction') }}" class="sidebar-link {% if request.endpoint == 'main.add_transaction' %}active{% endif %}">➕ Add Transaction</a>
 
       {% if current_user.households %}
         <div class="sidebar-section-label">Households</div>

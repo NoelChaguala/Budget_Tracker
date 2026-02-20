@@ -105,9 +105,9 @@ class Transaction(db.Model):
     __tablename__ = "transaction"
     transaction_id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
-    type = db.Column(db.String(20), nullable=False)  # "income" or "expense"
+    type = db.Column(db.String(10), nullable=False)  # "income" or "expense"
     date = db.Column(db.Date, nullable=False, default=date.today)
-    description = db.Column(db.String(200), nullable=True)
+    description = db.Column(db.String(255), nullable=False)
 
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)  # NULL = personal
