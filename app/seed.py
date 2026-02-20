@@ -1,7 +1,8 @@
-from app import app, db
-from app.models import User, Household, Transaction
+from app import create_app
+from app.models import db, User, Household, Transaction
 import random
 
+app = create_app()
 with app.app_context():
 
     # Reset database (DEV ONLY)
@@ -95,11 +96,11 @@ with app.app_context():
             description=desc,
             type="expense",
             user_id=random.choice([alice.id, bob.id]),
-            household_id=house.id
+            household_id=house.household_id
         ))
 
     # Save all transactions
     db.session.add_all(transactions)
     db.session.commit()
 
-    print("✅ Database seeded successfully with extended mock data!")
+    print("Database seeded successfully with extended mock data!")
