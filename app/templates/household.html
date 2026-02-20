@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ household.name }} — Budget Tracker{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Household: {{ household.name }}</h1>
+<p class="page-subtitle">Shared budget space for this household.</p>
+
+<div class="card">
+  <h2>Recent transactions</h2>
+  {% if transactions %}
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Description</th><th>Type</th><th>Amount</th></tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr>
+        <td>{{ t.date.strftime('%Y-%m-%d') if t.date else '-' }}</td>
+        <td>{{ t.description or '-' }}</td>
+        <td>{{ t.type }}</td>
+        <td class="amount-{{ t.type }}">{{ "%.2f"|format(t.amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No transactions yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Budgets</h2>
+  {% if budgets %}
+  <table>
+    <thead>
+      <tr><th>Month</th><th>Limit</th></tr>
+    </thead>
+    <tbody>
+      {% for b in budgets %}
+      <tr>
+        <td>{{ b.month.strftime('%Y-%m') if b.month else '-' }}</td>
+        <td>{{ "%.2f"|format(b.limit_amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No budgets yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Categories</h2>
+  {% if categories %}
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    {% for c in categories %}
+    <li style="padding: 0.35rem 0;">{{ c.name }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No categories yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

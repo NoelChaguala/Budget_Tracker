@@ -5,10 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}Budget Tracker{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body class="app-body">
 
-  {% block content %}{% endblock %}
+<div class="app-container">
+  <aside class="sidebar">
+    <h2 class="sidebar-brand">Budget App</h2>
 
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('main.personal_dashboard') }}" class="sidebar-link {% if request.endpoint == 'main.personal_dashboard' %}active{% endif %}">🏠 Personal Dashboard</a>
+
+      {% if current_user.households %}
+        <div class="sidebar-section-label">Households</div>
+        {% for h in current_user.households %}
+          <a href="{{ url_for('main.household_dashboard', household_id=h.household_id) }}" class="sidebar-link {% if request.endpoint == 'main.household_dashboard' and household and household.household_id == h.household_id %}active{% endif %}">👨‍👩‍👧 {{ h.name }}</a>
+        {% endfor %}
+      {% endif %}
+
+      <hr class="sidebar-hr">
+      <a href="{{ url_for('main.create_household') }}" class="sidebar-link {% if request.endpoint == 'main.create_household' %}active{% endif %}">➕ Create Household</a>
+      <a href="{{ url_for('main.join_household') }}" class="sidebar-link {% if request.endpoint == 'main.join_household' %}active{% endif %}">🔑 Join Household</a>
+
+      <hr class="sidebar-hr">
+      <a href="{{ url_for('main.settings') }}" class="sidebar-link {% if request.endpoint == 'main.settings' %}active{% endif %}">⚙ Settings</a>
+      <a href="{{ url_for('main.profile') }}" class="sidebar-link {% if request.endpoint == 'main.profile' %}active{% endif %}">👤 Profile</a>
+      <a href="{{ url_for('main.logout') }}" class="sidebar-link sidebar-link-logout">🚪 Logout</a>
+    </nav>
+  </aside>
+
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% block extra_js %}{% endblock %}
 </body>
 </html>
