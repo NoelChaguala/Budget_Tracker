@@ -23,6 +23,15 @@
       </select>
     </div>
     <div class="form-group">
+      <label for="category">Category:</label>
+      <select name="category" id="category" required>
+        <option value="">-- Select Category --</option>
+        {% for cat in allowed_categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
       <label for="household_id">Assign To:</label>
       <select name="household_id" id="household_id">
         <option value="">Personal</option>

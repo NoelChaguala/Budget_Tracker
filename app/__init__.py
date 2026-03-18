@@ -16,6 +16,11 @@ def create_app():
     login_manager.init_app(app)
 
     from .models import User
+    import config as project_config
+    app.config.from_object(project_config)
+
+
+    from .models import Category
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -28,5 +33,13 @@ def create_app():
     # Create database tables
     with app.app_context():
         db.create_all()
+
+        # Ensure system-defined categories exist (global/system categories have no user_id/household_id)
+        allowed = getattr(project_config, "ALLOWED_CATEGORIES", [])
+        for name in allowed:
+            existing = Category.query.filter_by(name=name, user_id=None, household_id=None).first()
+            if not existing:
+                db.session.add(Category(name=name))
+        db.session.commit()
 
     return app

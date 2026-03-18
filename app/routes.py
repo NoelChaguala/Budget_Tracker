@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import db, User, Household, HouseholdMembership, Transaction, Budget, Category
 from .forms import RegistrationForm, LoginForm, HouseholdForm
@@ -149,12 +149,34 @@ def join_household():
 @bp.route("/transaction/add", methods=["GET", "POST"])
 @login_required
 def add_transaction():
+    # Allowed category names (from config) — used for rendering & validation
+    allowed_categories = current_app.config.get("ALLOWED_CATEGORIES", [])
+
     if request.method == "POST":
-        amount = float(request.form.get("amount"))
-        description = request.form.get("description")
+        # Basic form values
+        try:
+            amount = float(request.form.get("amount"))
+        except (TypeError, ValueError):
+            flash("Invalid amount.", "danger")
+            return redirect(url_for("main.add_transaction"))
+
+        description = request.form.get("description") or ""
         t_type = request.form.get("type")
         raw_household_id = request.form.get("household_id")
         household_id = int(raw_household_id) if (raw_household_id and raw_household_id.strip()) else None
+
+        # Category must be one of the allowed system categories
+        selected_category = request.form.get("category")
+        if not selected_category or selected_category not in allowed_categories:
+            flash("Please select a valid category.", "danger")
+            return redirect(url_for("main.add_transaction"))
+
+        # Ensure Category row exists for the system category (global/system categories have null user/household)
+        category = Category.query.filter_by(name=selected_category, user_id=None, household_id=None).first()
+        if not category:
+            category = Category(name=selected_category)
+            db.session.add(category)
+            db.session.flush()
 
         transaction = Transaction(
             amount=amount,
@@ -162,6 +184,7 @@ def add_transaction():
             type=t_type,
             user_id=current_user.id,
             household_id=household_id,
+            category_id=category.category_id,
         )
         db.session.add(transaction)
         db.session.commit()
@@ -169,7 +192,7 @@ def add_transaction():
         flash("Transaction added successfully!", "success")
         return redirect(url_for("main.personal_dashboard"))
 
-    return render_template("add_transaction.html")
+    return render_template("add_transaction.html", allowed_categories=allowed_categories)
 
 
 # Settings (placeholder)

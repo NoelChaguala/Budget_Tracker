@@ -1,5 +1,6 @@
 from app import create_app
-from app.models import db, User, Household, Transaction
+from app.models import db, User, Household, Transaction, Category
+import config as project_config
 import random
 
 app = create_app()
@@ -29,6 +30,12 @@ with app.app_context():
     house.members.append(bob)
 
     db.session.add(house)
+    db.session.commit()
+
+    # Ensure system categories exist in seed too
+    for name in getattr(project_config, "ALLOWED_CATEGORIES", []):
+        if not Category.query.filter_by(name=name, user_id=None, household_id=None).first():
+            db.session.add(Category(name=name))
     db.session.commit()
 
     transactions = []
