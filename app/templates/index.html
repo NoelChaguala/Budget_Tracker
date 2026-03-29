@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <style>
+    .dashboard { max-width: 900px; margin: 0 auto; padding: 2rem; }
+    .dashboard h1 { color: #1f2937; margin-bottom: 0.25rem; font-size: 1.75rem; }
+    .dashboard .scope-name { color: #6b7280; font-size: 1rem; margin-bottom: 1.5rem; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+    .card h2 { font-size: 1.1rem; color: #374151; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; }
+    .nav-links { margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .nav-links a { color: #4f46e5; text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { text-decoration: underline; }
+    .nav-links .sep { color: #9ca3af; }
+    .nav-links .current { color: #1f2937; font-weight: 600; }
+    .nav-links .right { margin-left: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { text-align: left; padding: 0.5rem 0. }
+    th { color: #6b7280; font-weight: 600; }
+    .amount-income { color: #059669; }
+    .amount-expense { color: #dc2626; }
+    .empty { color: #9ca3af; font-style: italic; }
+    .household-actions { margin-top: 0.5rem; font-size: 0.9rem; }
+    .household-actions a { color: #4f46e5; }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard">
+    <div class="nav-links">
+      <a href="{{ url_for('main.index') }}" class="{% if is_personal %}current{% endif %}">Personal</a>
+      {% for h in user_households %}
+        <span class="sep">|</span>
+        <a href="{{ url_for('main.index', household=h.household_id) }}" class="{% if household and household.household_id == h.household_id %}current{% endif %}">{{ h.name }}</a>
+      {% endfor %}
+      <span class="sep">|</span>
+      <a href="{{ url_for('main.create_household') }}">Create household</a>
+      <a href="{{ url_for('main.join_household') }}">Join household</a>
+      <a href="{{ url_for('main.logout') }}" class="right">Log out</a>
+    </div>
+
+    <h1>{% if household %}Household: {{ household.name }}{% else %}Personal Dashboard{% endif %}</h1>
+    <p class="scope-name">
+      {% if household %}Shared budget space for this household.{% else %}Your personal budget — only you see this.{% endif %}
+    </p>
+
+    <div class="card">
+      <h2>Recent transactions</h2>
+      {% if transactions %}
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Description</th><th>Type</th><th>Amount</th></tr>
+        </thead>
+        <tbody>
+          {% for t in transactions %}
+          <tr>
+            <td>{{ t.date.strftime('%Y-%m-%d') if t.date else '-' }}</td>
+            <td>{{ t.description or '-' }}</td>
+            <td>{{ t.type }}</td>
+            <td class="amount-{{ t.type }}">{{ "%.2f"|format(t.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">No transactions yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Budgets</h2>
+      {% if budgets %}
+      <table>
+        <thead>
+          <tr><th>Month</th><th>Limit</th><th>Scope</th></tr>
+        </thead>
+        <tbody>
+          {% for b in budgets %}
+          <tr>
+            <td>{{ b.month.strftime('%Y-%m') if b.month else '-' }}</td>
+            <td>{{ "%.2f"|format(b.limit_amount) }}</td>
+            <td>{{ 'Personal' if b.is_personal() else 'Household' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">No budgets yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Categories</h2>
+      {% if categories %}
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        {% for c in categories %}
+        <li style="padding: 0.35rem 0;">{{ c.name }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty">No categories yet.</p>
+      {% endif %}
+    </div>
+
+    {% if is_personal and not user_households %}
+    <p class="household-actions">Want to share a budget with others? <a href="{{ url_for('main.create_household') }}">Create a household</a> or <a href="{{ url_for('main.join_household') }}">join with an invite code</a>.</p>
+    {% endif %}
+  </div>
+
+</body>
+</html>

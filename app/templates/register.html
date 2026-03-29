@@ -1,0 +1,61 @@
+{% extends "auth_base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block content %}
+
+<div class="login-container">
+  <div class="header">
+    <h1>Create an account</h1>
+    <p>Please enter your details</p>
+  </div>
+
+  <div class="form-body">
+    <form method="POST">
+      {{ form.hidden_tag() }}
+
+      <div class="form-group">
+        {{ form.username.label }}
+        {{ form.username(class="input-field", placeholder="Username (3–25 characters)") }}
+        {% if form.username.errors %}
+          <span style="color: #dc2626; font-size: 0.85rem;">{{ form.username.errors[0] }}</span>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        {{ form.email.label }}
+        {{ form.email(class="input-field", placeholder="name@example.com") }}
+        {% if form.email.errors %}
+          <span style="color: #dc2626; font-size: 0.85rem;">{{ form.email.errors[0] }}</span>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        {{ form.password.label }}
+        {{ form.password(class="input-field", placeholder="At least 6 characters") }}
+        {% if form.password.errors %}
+          <span style="color: #dc2626; font-size: 0.85rem;">{{ form.password.errors[0] }}</span>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        {{ form.confirm_password.label }}
+        {{ form.confirm_password(class="input-field", placeholder="Confirm password") }}
+        {% if form.confirm_password.errors %}
+          <span style="color: #dc2626; font-size: 0.85rem;">{{ form.confirm_password.errors[0] }}</span>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn-login">
+        Register
+      </button>
+    </form>
+
+    <div class="signup-link">
+      Already have an account?
+      <a href="{{ url_for('main.login') }}">Sign in</a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

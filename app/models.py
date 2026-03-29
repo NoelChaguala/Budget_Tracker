@@ -1,13 +1,143 @@
-from . import db
+from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import date
 
+db = SQLAlchemy()
+
+# -------------------
+# Household Model
+# -------------------
+class Household(db.Model):
+    __tablename__ = "household"
+    household_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    invite_code = db.Column(db.String(50), unique=True, nullable=True)
+
+    # Relationships (no direct User FK; users join via HouseholdMembership)
+    memberships = db.relationship("HouseholdMembership", back_populates="household", lazy=True)
+    categories = db.relationship("Category", backref="household", lazy=True, foreign_keys="Category.household_id")
+    transactions = db.relationship("Transaction", backref="household", lazy=True)
+    budgets = db.relationship("Budget", backref="household", lazy=True)
+
+    @property
+    def members(self):
+        return [m.user for m in self.memberships]
+
+    def __repr__(self):
+        return f"<Household {self.name}>"
+
+
+# -------------------
+# HouseholdMembership (User <-> Household, many-to-many)
+# -------------------
+class HouseholdMembership(db.Model):
+    __tablename__ = "household_membership"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default="member")  # "owner" or "member"
+
+    user = db.relationship("User", back_populates="memberships")
+    household = db.relationship("Household", back_populates="memberships")
+
+    __table_args__ = (db.UniqueConstraint("user_id", "household_id", name="uq_user_household"),)
+
+
+# -------------------
+# User Model
+# -------------------
 class User(db.Model, UserMixin):
+    __tablename__ = "user"
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True)
-    password_hash = db.Column(db.String(255))
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)
+    password_hash = db.Column(db.String(255), nullable=False)
 
+    # Relationships
+    memberships = db.relationship("HouseholdMembership", back_populates="user", lazy=True)
+    transactions = db.relationship("Transaction", backref="user", lazy=True, foreign_keys="Transaction.user_id")
+    budgets = db.relationship("Budget", backref="user", lazy=True, foreign_keys="Budget.user_id")
+    categories = db.relationship("Category", backref="user", lazy=True, foreign_keys="Category.user_id")
+
+    @property
+    def households(self):
+        return [m.household for m in self.memberships]
+
+    def is_member_of(self, household):
+        return any(m.household_id == household.household_id for m in self.memberships)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f"<User {self.username}>"
+
+
+# -------------------
+# Category Model (personal: user_id set; household: household_id set)
+# -------------------
+class Category(db.Model):
+    __tablename__ = "category"
+    category_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)
+
+    transactions = db.relationship("Transaction", backref="category", lazy=True)
+
+    def is_personal(self):
+        return self.user_id is not None
+
+    def __repr__(self):
+        return f"<Category {self.name}>"
+
+
+# -------------------
+# Transaction Model
+# personal: user_id set, household_id NULL
+# household: user_id set (who added it), household_id set
+# -------------------
 class Transaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Float)
-    description = db.Column(db.String(200))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    __tablename__ = "transaction"
+    transaction_id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    type = db.Column(db.String(10), nullable=False)  # "income" or "expense"
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    description = db.Column(db.String(255), nullable=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)  # NULL = personal
+    category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=True)
+
+    def is_personal(self):
+        return self.household_id is None
+
+    def __repr__(self):
+        scope = "Personal" if self.is_personal() else "Household"
+        return f"<Transaction {self.amount} ({scope})>"
+
+
+# -------------------
+# Budget Model
+# personal: user_id set, household_id NULL
+# household: user_id set (owner), household_id set
+# -------------------
+class Budget(db.Model):
+    __tablename__ = "budget"
+    budget_id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.Date, nullable=False)
+    limit_amount = db.Column(db.Float, nullable=False)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)  # NULL = personal
+
+    def is_personal(self):
+        return self.household_id is None
+
+    def __repr__(self):
+        scope = "Personal" if self.is_personal() else "Household"
+        return f"<Budget {scope} {self.limit_amount} for {self.month}>"

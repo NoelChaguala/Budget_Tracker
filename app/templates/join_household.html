@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Join Household — Budget Tracker{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Join a household</h1>
+<p class="page-subtitle">Enter the invite code you received.</p>
+
+<div class="card" style="max-width: 420px;">
+  <form method="POST">
+    <div class="form-group">
+      <label for="invite_code">Invite code</label>
+      <input
+        type="text"
+        id="invite_code"
+        name="invite_code"
+        placeholder="Enter invite code"
+        required
+        autocomplete="off"
+      >
+    </div>
+
+    <button type="submit" class="btn-login">Join household</button>
+  </form>
+
+  <div class="signup-link" style="margin-top: 1rem;">
+    <a href="{{ url_for('main.create_household') }}">Create a new household instead</a>
+  </div>
+</div>
+{% endblock %}

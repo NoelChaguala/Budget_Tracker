@@ -1,0 +1,39 @@
+{% extends "auth_base.html" %}
+
+{% block title %}Sign In{% endblock %}
+
+{% block content %}
+
+<div class="login-container">
+  <div class="header">
+    <h1>Welcome back</h1>
+    <p>Please enter your details</p>
+  </div>
+
+  <div class="form-body">
+    <form method="POST">
+      {{ form.hidden_tag() }}
+
+      <div class="form-group">
+        {{ form.username.label }}
+        {{ form.username(class="input-field") }}
+      </div>
+
+      <div class="form-group">
+        {{ form.password.label }}
+        {{ form.password(class="input-field") }}
+      </div>
+
+      <button type="submit" class="btn-login">
+        Sign in
+      </button>
+    </form>
+
+    <div class="signup-link">
+      Don't have an account?
+      <a href="{{ url_for('main.register') }}">Sign up</a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
