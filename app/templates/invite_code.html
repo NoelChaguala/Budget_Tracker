@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Invite Code — {{ household.name }}{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Household Invite Code</h1>
+<p class="page-subtitle">Share this code with others to invite them to join your household.</p>
+
+<div class="card">
+  <div class="invite-section">
+    <h2>Your Invite Code</h2>
+    <div class="invite-code-display">
+      <span class="invite-code">{{ household.invite_code }}</span>
+    </div>
+    <div class="invite-actions">
+      <button class="btn-action btn-copy" onclick="copyInviteCode()">Copy Code</button>
+      <a href="{{ url_for('main.household_dashboard', household_id=household.household_id) }}" class="btn-action btn-cancel">Back to Dashboard</a>
+    </div>
+    <div id="copy-feedback" class="copy-feedback" style="display: none;">
+      Invite code copied to clipboard!
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>How to Use</h2>
+  <ol>
+    <li>Share this invite code with friends or family members</li>
+    <li>They can join your household by going to "Join Household" in their dashboard</li>
+    <li>They'll enter this code to become a member of your household</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyInviteCode() {
+    const code = "{{ household.invite_code }}";
+    navigator.clipboard.writeText(code).then(function() {
+        const feedback = document.getElementById('copy-feedback');
+        feedback.style.display = 'block';
+        setTimeout(function() {
+            feedback.style.display = 'none';
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Could not copy text: ', err);
+    });
+}
+
+// Allow clicking anywhere on the code display to copy
+document.querySelector('.invite-code-display').addEventListener('click', copyInviteCode);
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.invite-section {
+  text-align: center;
+}
+
+.invite-code-display {
+  background: #f3f4f6;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.invite-code-display:hover {
+  border-color: #60a5fa;
+  background: #eff6ff;
+}
+
+.invite-code {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #1f2937;
+  user-select: all;
+}
+
+.invite-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.copy-feedback {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 6px;
+  font-weight: 600;
+  animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.invite-code-display .invite-code {
+  font-family: 'Courier New', monospace;
+}
+</style>
+{% endblock %}

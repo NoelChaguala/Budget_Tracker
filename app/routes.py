@@ -195,6 +195,133 @@ def add_transaction():
     return render_template("add_transaction.html", allowed_categories=allowed_categories)
 
 
+# Edit Transaction
+@bp.route("/transaction/edit/<int:transaction_id>", methods=["GET", "POST"])
+@login_required
+def edit_transaction(transaction_id):
+    transaction = Transaction.query.get_or_404(transaction_id)
+    
+    # Permission Check
+    # 1. Personal: User must own it (user_id matches and household_id is None)
+    # 2. Household: User must be a member of that household
+    is_personal_owner = transaction.user_id == current_user.id and transaction.household_id is None
+    is_household_member = False
+    
+    if transaction.household_id:
+        membership = HouseholdMembership.query.filter_by(
+            user_id=current_user.id, 
+            household_id=transaction.household_id
+        ).first()
+        is_household_member = membership is not None
+
+    if not (is_personal_owner or is_household_member):
+        flash("You do not have permission to edit this transaction.", "danger")
+        return redirect(url_for("main.personal_dashboard"))
+
+    # Get allowed categories for the form
+    allowed_categories = current_app.config.get("ALLOWED_CATEGORIES", [])
+    
+    # Ensure system categories exist and get their IDs
+    categories = []
+    for name in allowed_categories:
+        category = Category.query.filter_by(name=name, user_id=None, household_id=None).first()
+        if not category:
+            category = Category(name=name)
+            db.session.add(category)
+            db.session.flush()
+        categories.append(category)
+
+    if request.method == "POST":
+        try:
+            amount = float(request.form.get("amount"))
+        except (TypeError, ValueError):
+            flash("Invalid amount.", "danger")
+            return render_template("edit_transaction.html", transaction=transaction, allowed_categories=categories)
+
+        description = request.form.get("description") or ""
+        t_type = request.form.get("type")
+        date_str = request.form.get("date")
+        
+        # Validate date
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else None
+        except (ValueError, TypeError):
+            flash("Invalid date format.", "danger")
+            return render_template("edit_transaction.html", transaction=transaction, allowed_categories=categories)
+
+        # Update transaction
+        transaction.amount = amount
+        transaction.description = description
+        transaction.type = t_type
+        transaction.date = date_obj
+        
+        # Category handling - use the selected category
+        category_id = request.form.get("category_id")
+        if category_id:
+            try:
+                transaction.category_id = int(category_id)
+            except (ValueError, TypeError):
+                flash("Invalid category.", "danger")
+                return render_template("edit_transaction.html", transaction=transaction, allowed_categories=categories)
+
+        db.session.commit()
+        flash("Transaction updated successfully!", "success")
+        
+        # Redirect to appropriate dashboard
+        if transaction.household_id:
+            return redirect(url_for("main.household_dashboard", household_id=transaction.household_id))
+        else:
+            return redirect(url_for("main.personal_dashboard"))
+
+    return render_template("edit_transaction.html", transaction=transaction, allowed_categories=categories)
+
+
+# Delete Transaction
+@bp.route("/transaction/delete/<int:transaction_id>", methods=["POST"])
+@login_required
+def delete_transaction(transaction_id):
+    transaction = Transaction.query.get_or_404(transaction_id)
+    
+    # Permission Check (same logic as edit)
+    is_personal_owner = transaction.user_id == current_user.id and transaction.household_id is None
+    is_household_member = False
+    
+    if transaction.household_id:
+        membership = HouseholdMembership.query.filter_by(
+            user_id=current_user.id, 
+            household_id=transaction.household_id
+        ).first()
+        is_household_member = membership is not None
+
+    if not (is_personal_owner or is_household_member):
+        flash("You do not have permission to delete this transaction.", "danger")
+        return redirect(url_for("main.personal_dashboard"))
+
+    db.session.delete(transaction)
+    db.session.commit()
+    flash("Transaction deleted.", "info")
+    
+    # Redirect back to the referring page or appropriate dashboard
+    if request.referrer:
+        return redirect(request.referrer)
+    elif transaction.household_id:
+        return redirect(url_for("main.household_dashboard", household_id=transaction.household_id))
+    else:
+        return redirect(url_for("main.personal_dashboard"))
+
+
+# Show Invite Code (for household members)
+@bp.route("/household/<int:household_id>/invite")
+@login_required
+def show_invite_code(household_id):
+    household = Household.query.get_or_404(household_id)
+    if not current_user.is_member_of(household):
+        abort(404)
+    
+    return render_template("invite_code.html", household=household)
+
+
 # Settings (placeholder)
 @bp.route("/settings")
 @login_required
