@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 
@@ -101,3 +101,86 @@ def create_budget():
         has_household=(membership is not None),
         now=datetime.now(),
     )
+
+
+@bp.route("/budget/edit/<int:budget_id>", methods=["GET", "POST"])
+@login_required
+def edit_budget(budget_id):
+    budget = Budget.query.get_or_404(budget_id)
+
+    if budget.user_id:
+        if budget.user_id != current_user.id:
+            abort(403)
+    elif budget.household_id:
+        if not current_user.is_member_of(budget.household):
+            abort(403)
+    else:
+        abort(403)
+
+    if request.method == "POST":
+        limit = request.form.get("amount_limit")
+        description = request.form.get("description", "").strip()
+        month_str = request.form.get("month")
+
+        try:
+            limit = float(limit)
+            if limit <= 0:
+                raise ValueError()
+        except Exception:
+            flash("Please enter a valid budget limit greater than 0.", "danger")
+            return redirect(url_for("main.edit_budget", budget_id=budget_id))
+
+        try:
+            month = datetime.strptime(month_str, "%Y-%m").date().replace(day=1)
+        except Exception:
+            flash("Invalid month format.", "danger")
+            return redirect(url_for("main.edit_budget", budget_id=budget_id))
+
+        budget.limit_amount = limit
+        budget.description = description
+        budget.month = month
+        db.session.commit()
+        flash("Budget updated successfully!", "success")
+
+        if budget.household_id:
+            return redirect(url_for("main.household_dashboard", household_id=budget.household_id))
+        return redirect(url_for("main.personal_dashboard"))
+
+    categories = Category.query.filter(
+        Category.parent_id.is_(None),
+        or_(Category.is_system == True, Category.user_id == current_user.id),
+    ).order_by(Category.name).all()
+
+    membership = HouseholdMembership.query.filter_by(user_id=current_user.id).first()
+
+    return render_template(
+        "edit_budget.html",
+        budget=budget,
+        categories=categories,
+        has_household=(membership is not None),
+    )
+
+
+@bp.route("/budget/delete/<int:budget_id>", methods=["POST"])
+@login_required
+def delete_budget(budget_id):
+    budget = Budget.query.get_or_404(budget_id)
+
+    if budget.user_id:
+        if budget.user_id != current_user.id:
+            abort(403)
+    elif budget.household_id:
+        if not current_user.is_member_of(budget.household):
+            abort(403)
+    else:
+        abort(403)
+
+    redirect_url = url_for("main.personal_dashboard")
+    if budget.household_id:
+        redirect_url = url_for("main.household_dashboard", household_id=budget.household_id)
+
+    db.session.delete(budget)
+    db.session.commit()
+    flash("Budget deleted successfully!", "success")
+
+    return redirect(redirect_url)

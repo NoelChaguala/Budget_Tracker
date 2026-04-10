@@ -65,7 +65,15 @@
   <div class="mb-3">
     <div class="d-flex justify-content-between">
       <strong>{{ b.category }}</strong>
-      <span>${{ "%.2f"|format(b.spent) }} / ${{ "%.2f"|format(b.limit) }}</span>
+      <span>
+        <a href="{{ url_for('main.edit_budget', budget_id=b.budget_id) }}" class="btn-action btn-edit" title="Edit Budget" style="padding: 2px 6px; font-size: 0.85rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </a>
+        ${{ "%.2f"|format(b.spent) }} / ${{ "%.2f"|format(b.limit) }}
+      </span>
     </div>
     <div class="progress" style="height: 20px;">
       <div class="progress-bar {% if b.percent > 90 %}bg-danger{% elif b.percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 

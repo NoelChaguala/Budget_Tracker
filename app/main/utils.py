@@ -34,7 +34,10 @@ def get_budget_report(user_id=None, household_id=None):
 
         report.append(
             {
+                "budget_id": budget.budget_id,
                 "category": budget.category.name,
+                "category_id": budget.category_id,
+                "month": budget.month,
                 "limit": budget.limit_amount,
                 "spent": spent,
                 "remaining": budget.limit_amount - spent,
