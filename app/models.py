@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date
+from sqlalchemy import and_
 
 db = SQLAlchemy()
 
@@ -86,11 +87,26 @@ class Category(db.Model):
     name = db.Column(db.String(80), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('category.category_id'), nullable=True)
+    is_system = db.Column(db.Boolean, default=False)
+
+    # Self-referential relationships
+    subcategories = db.relationship("Category", backref=db.backref("parent", remote_side=[category_id]), lazy=True)
 
     transactions = db.relationship("Transaction", backref="category", lazy=True)
 
     def is_personal(self):
         return self.user_id is not None
+
+    def is_system_category(self):
+        return self.is_system
+
+    def get_all_subcategory_ids(self):
+        """Recursively get all subcategory IDs including this category"""
+        ids = [self.category_id]
+        for sub in self.subcategories:
+            ids.extend(sub.get_all_subcategory_ids())
+        return ids
 
     def __repr__(self):
         return f"<Category {self.name}>"
@@ -128,12 +144,24 @@ class Transaction(db.Model):
 # -------------------
 class Budget(db.Model):
     __tablename__ = "budget"
+
     budget_id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(255), nullable=True)
+
     month = db.Column(db.Date, nullable=False)
     limit_amount = db.Column(db.Float, nullable=False)
 
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)  # NULL = personal
+    category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=False)
+
+    # Scope fields
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)
+
+    category = db.relationship("Category", backref="budgets", lazy=True)
+
+    # VALIDATION: Exactly one of these must be provided
+    def validate_scope(self):
+        return (self.user_id is None) ^ (self.household_id is None)
 
     def is_personal(self):
         return self.household_id is None

@@ -1,5 +1,4 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from .models import db
 
@@ -27,8 +26,8 @@ def create_app():
         return User.query.get(int(user_id))
 
     # Import routes
-    from . import routes
-    app.register_blueprint(routes.bp)
+    from .main import bp as main_bp
+    app.register_blueprint(main_bp)
 
     # Create database tables
     with app.app_context():
@@ -39,7 +38,7 @@ def create_app():
         for name in allowed:
             existing = Category.query.filter_by(name=name, user_id=None, household_id=None).first()
             if not existing:
-                db.session.add(Category(name=name))
+                db.session.add(Category(name=name, is_system=True))
         db.session.commit()
 
     return app

@@ -47,23 +47,29 @@
 </div>
 
 <div class="card">
-  <h2>Budgets</h2>
-  {% if budgets %}
-  <table>
-    <thead>
-      <tr><th>Month</th><th>Limit</th></tr>
-    </thead>
-    <tbody>
-      {% for b in budgets %}
-      <tr>
-        <td>{{ b.month.strftime('%Y-%m') if b.month else '-' }}</td>
-        <td>{{ "%.2f"|format(b.limit_amount) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <h2>Monthly Budgets</h2>
+  {% if budget_report %}
+  {% for b in budget_report %}
+  <div class="mb-3">
+    <div class="d-flex justify-content-between">
+      <strong>{{ b.category }}</strong>
+      <span>${{ "%.2f"|format(b.spent) }} / ${{ "%.2f"|format(b.limit) }}</span>
+    </div>
+    <div class="progress" style="height: 20px;">
+      <div class="progress-bar {% if b.percent > 90 %}bg-danger{% elif b.percent > 70 %}bg-warning{% else %}bg-success{% endif %}"
+           role="progressbar"
+           style="width: {{ b.percent }}%;"
+           aria-valuenow="{{ b.percent }}"
+           aria-valuemin="0"
+           aria-valuemax="100">
+        {{ b.percent | round }}%
+      </div>
+    </div>
+    <small class="text-muted">${{ "%.2f"|format(b.remaining) }} remaining</small>
+  </div>
+  {% endfor %}
   {% else %}
-  <p class="empty">No budgets yet.</p>
+  <p class="empty">No budgets set yet. <a href="{{ url_for('main.create_budget') }}" class="btn-primary">Create a Budget</a></p>
   {% endif %}
 </div>
 

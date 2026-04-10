@@ -22,12 +22,18 @@
         <option value="expense">Expense</option>
       </select>
     </div>
-    <div class="form-group">
+<div class="form-group">
       <label for="category">Category:</label>
       <select name="category" id="category" required>
         <option value="">-- Select Category --</option>
         {% for cat in allowed_categories %}
-        <option value="{{ cat }}">{{ cat }}</option>
+        <option value="{{ cat.category_id }}">
+          {% if cat.parent_id %}
+          {{ cat.parent.name }} > {{ cat.name }}
+          {% else %}
+          {{ cat.name }}
+          {% endif %}
+        </option>
         {% endfor %}
       </select>
     </div>
