@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Create Budget — Budget Tracker{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Create Budget</h1>
+<p class="page-subtitle">Set spending limits for your categories.</p>
+
+<div class="card">
+  <form method="POST" action="{{ url_for('main.create_budget') }}">
+
+    <!-- Scope Selector -->
+    <div class="form-group">
+      <label>Budget Scope</label>
+      <div class="scope-selector">
+        <label class="radio-label">
+          <input type="radio" name="scope" value="personal" checked>
+          Personal
+        </label>
+        {% if has_household %}
+        <label class="radio-label">
+          <input type="radio" name="scope" value="household">
+          Household
+        </label>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Category Dropdown (only parent categories) -->
+    <div class="form-group">
+      <label for="category_id">Category</label>
+      <select id="category_id" name="category_id" required>
+        <option value="">Select a category</option>
+        {% for cat in categories %}
+        <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+        {% endfor %}
+      </select>
+      <small class="form-hint">Sub-categories will automatically roll up into this budget.</small>
+    </div>
+
+    <!-- Month Picker -->
+    <div class="form-group">
+      <label for="month">Month</label>
+      <input type="month" id="month" name="month" required
+             value="{{ now.strftime('%Y-%m') }}">
+    </div>
+
+    <!-- Limit Amount -->
+    <div class="form-group">
+      <label for="amount_limit">Monthly Limit ($)</label>
+      <input type="number" id="amount_limit" name="amount_limit" step="0.01" min="0.01" required>
+    </div>
+
+    <!-- Description -->
+    <div class="form-group">
+      <label for="description">Description (optional)</label>
+      <textarea id="description" name="description" rows="2"
+                placeholder="e.g., Monthly grocery allowance"></textarea>
+    </div>
+
+    <!-- Actions -->
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Set Budget</button>
+      <a href="{{ url_for('main.personal_dashboard') }}" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

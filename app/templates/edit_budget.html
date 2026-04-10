@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Budget — Budget Tracker{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Edit Budget</h1>
+<p class="page-subtitle">Update your budget for {{ budget.category.name }} — {{ budget.month.strftime('%B %Y') }}.</p>
+
+<div class="card">
+  <form method="POST" action="{{ url_for('main.edit_budget', budget_id=budget.budget_id) }}">
+
+    <!-- Category Display (read-only) -->
+    <div class="form-group">
+      <label>Category</label>
+      <p style="margin: 0; font-weight: 500;">{{ budget.category.name }}</p>
+    </div>
+
+    <!-- Month Picker -->
+    <div class="form-group">
+      <label for="month">Month</label>
+      <input type="month" id="month" name="month" required
+             value="{{ budget.month.strftime('%Y-%m') }}">
+    </div>
+
+    <!-- Limit Amount -->
+    <div class="form-group">
+      <label for="amount_limit">Monthly Limit ($)</label>
+      <input type="number" id="amount_limit" name="amount_limit" step="0.01" min="0.01" required
+             value="{{ budget.limit_amount }}">
+    </div>
+
+    <!-- Description -->
+    <div class="form-group">
+      <label for="description">Description (optional)</label>
+      <textarea id="description" name="description" rows="2"
+                placeholder="e.g., Monthly grocery allowance">{{ budget.description or '' }}</textarea>
+    </div>
+
+    <!-- Actions -->
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Update Budget</button>
+      {% if budget.household_id %}
+      <a href="{{ url_for('main.household_dashboard', household_id=budget.household_id) }}" class="btn-secondary">Cancel</a>
+      {% else %}
+      <a href="{{ url_for('main.personal_dashboard') }}" class="btn-secondary">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+
+  <form method="POST" action="{{ url_for('main.delete_budget', budget_id=budget.budget_id) }}" onsubmit="return confirm('Are you sure you want to delete this budget? This action cannot be undone.')">
+    <button type="submit" class="btn-danger">Delete Budget</button>
+  </form>
+</div>
+{% endblock %}
