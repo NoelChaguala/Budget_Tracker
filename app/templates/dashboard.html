@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/dashboard_content.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (() => {
+    const body = document.body;
+
+    function openModal() {
+      const modal = document.getElementById("transaction-modal");
+      if (!modal) return;
+      modal.classList.add("is-open");
+      body.classList.add("modal-open");
+      const amountInput = modal.querySelector('input[name="amount"]');
+      if (amountInput) amountInput.focus();
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("transaction-modal");
+      if (!modal) return;
+      modal.classList.remove("is-open");
+      body.classList.remove("modal-open");
+    }
+
+    function setQuickAmount(value) {
+      const input = document.querySelector('#transaction-modal input[name="amount"]');
+      if (!input) return;
+      input.value = value;
+      input.focus();
+    }
+
+    function setTransactionType(type) {
+      const typeInput = document.querySelector('#transaction-modal input[name="type"]');
+      const toggleButtons = document.querySelectorAll("#type-toggle .chip");
+      if (!typeInput || !toggleButtons.length) return;
+      typeInput.value = type;
+      toggleButtons.forEach((btn) => btn.classList.toggle("is-selected", btn.dataset.type === type));
+    }
+
+    function selectCategory(categoryId) {
+      const categoryInput = document.querySelector('#transaction-modal input[name="category"]');
+      const categoryButtons = document.querySelectorAll(".category-chip");
+      if (!categoryInput || !categoryButtons.length) return;
+      categoryInput.value = categoryId;
+      categoryButtons.forEach((btn) => btn.classList.toggle("is-selected", btn.dataset.category === categoryId));
+    }
+
+    function showToast(message, type = "success") {
+      const region = document.getElementById("toast-region");
+      if (!region || !message) return;
+      const toast = document.createElement("div");
+      toast.className = `toast toast-${type}`;
+      toast.textContent = message;
+      region.appendChild(toast);
+      window.setTimeout(() => {
+        toast.classList.add("is-out");
+        window.setTimeout(() => toast.remove(), 220);
+      }, 2600);
+    }
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+
+      if (target.closest("[data-open-transaction-modal]")) {
+        openModal();
+      }
+      if (target.closest("[data-close-transaction-modal]")) {
+        closeModal();
+      }
+
+      const quickButton = target.closest("[data-quick-amount]");
+      if (quickButton) {
+        setQuickAmount(quickButton.dataset.quickAmount);
+      }
+
+      const typeButton = target.closest("[data-transaction-type]");
+      if (typeButton) {
+        setTransactionType(typeButton.dataset.transactionType);
+      }
+
+      const categoryButton = target.closest("[data-category-id]");
+      if (categoryButton) {
+        selectCategory(categoryButton.dataset.categoryId);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeModal();
+    });
+
+    document.body.addEventListener("dashboard:transaction-added", (event) => {
+      if (event.detail?.level === "success") {
+        closeModal();
+      }
+      showToast(event.detail?.message || "Transaction updated.", event.detail?.level || "success");
+    });
+
+    document.body.addEventListener("htmx:afterSwap", (event) => {
+      if (event.detail?.target?.id === "dashboard-content") {
+        const activeCategory = document.querySelector("[data-default-category]");
+        if (activeCategory) {
+          selectCategory(activeCategory.dataset.defaultCategory);
+        }
+      }
+    });
+
+    document.body.addEventListener("htmx:responseError", () => {
+      showToast("Something went wrong. Please try again.", "danger");
+    });
+  })();
+</script>
+{% endblock %}
