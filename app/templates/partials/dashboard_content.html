@@ -1,0 +1,220 @@
+<div
+  id="dashboard-content"
+  class="dashboard-content"
+  {% if is_household %}
+    data-scope="household"
+  {% else %}
+    data-scope="personal"
+  {% endif %}
+>
+  <div class="scope-toggle-wrap">
+    <div class="scope-toggle">
+      <button
+        class="scope-pill {% if not is_household %}active{% endif %}"
+        hx-get="{{ url_for('main.dashboard_content') }}"
+        hx-target="#dashboard-content"
+        hx-swap="outerHTML"
+        hx-push-url="{{ url_for('main.personal_dashboard') }}"
+        hx-indicator=".dashboard-skeleton"
+      >
+        Personal
+      </button>
+      {% for h in current_user.households %}
+      <button
+        class="scope-pill {% if is_household and household.household_id == h.household_id %}active{% endif %}"
+        hx-get="{{ url_for('main.dashboard_content', household_id=h.household_id) }}"
+        hx-target="#dashboard-content"
+        hx-swap="outerHTML"
+        hx-push-url="{{ url_for('main.household_dashboard', household_id=h.household_id) }}"
+        hx-indicator=".dashboard-skeleton"
+      >
+        {{ h.name }}
+      </button>
+      {% endfor %}
+    </div>
+    {% if is_household %}
+    <div class="scope-members">
+      <div class="member-dots" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      Shared with {{ member_count }} {{ "person" if member_count == 1 else "people" }}
+    </div>
+    {% endif %}
+  </div>
+
+  <section class="hero hero-{{ health_state }}">
+    <p class="hero-label">Available to Spend</p>
+    <h1 class="hero-amount">${{ "{:,.2f}".format(available_to_spend) }}</h1>
+    <p class="hero-meta">This month {% if month_income > 0 %}- Savings rate {{ savings_rate|round(1) }}%{% endif %}</p>
+    <div class="health-pill {{ health_state }}">
+      {% if health_state == "good" %}
+      On track this month
+      {% elif health_state == "warning" %}
+      Close to your spending limit
+      {% else %}
+      Action needed this month
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="summary-grid">
+    <article class="summary-card">
+      <p>Income</p>
+      <strong>${{ "{:,.2f}".format(month_income) }}</strong>
+    </article>
+    <article class="summary-card">
+      <p>Expenses</p>
+      <strong>${{ "{:,.2f}".format(month_expenses) }}</strong>
+    </article>
+    <article class="summary-card">
+      <p>Savings Rate</p>
+      <strong>{{ savings_rate|round(1) }}%</strong>
+    </article>
+    <article class="summary-card {% if largest_overspend %}warn{% endif %}">
+      <p>Largest Overspend</p>
+      {% if largest_overspend %}
+      <strong>${{ "{:,.2f}".format(largest_overspend.remaining|abs) }}</strong>
+      <small>{{ largest_overspend.category }}</small>
+      {% else %}
+      <strong>$0.00</strong>
+      <small>All budgets in range</small>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Budget Progress</h2>
+      <a href="{{ url_for('main.create_budget') }}" class="muted-link">Edit limits</a>
+    </div>
+    {% if budget_items %}
+      {% for item in budget_items %}
+      <article class="budget-row {% if item.remaining < 0 %}is-over{% endif %}">
+        <div class="budget-row-top">
+          <p class="budget-name">{{ item.category }}</p>
+          <p class="budget-values">${{ "{:,.0f}".format(item.spent) }} / ${{ "{:,.0f}".format(item.limit) }}</p>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill {% if item.percent >= 90 %}danger{% elif item.percent >= 70 %}warning{% else %}safe{% endif %}" style="--target: {{ item.percent|round(1) }}%;"></div>
+        </div>
+        <p class="budget-meta">
+          {% if item.remaining >= 0 %}
+            ${{ "{:,.0f}".format(item.remaining) }} left - {{ days_remaining }} days remaining
+          {% else %}
+            You're ${{ "{:,.0f}".format(item.remaining|abs) }} over budget
+          {% endif %}
+        </p>
+      </article>
+      {% endfor %}
+    {% else %}
+      <p class="empty">No budgets yet. Add your first monthly limit to get quick progress signals.</p>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Recent Transactions</h2>
+      <p class="card-subtle">Updated instantly after each add</p>
+    </div>
+    {% if transactions %}
+      <ul class="transaction-list">
+        {% for t in transactions %}
+        <li class="transaction-item">
+          <div>
+            <p class="transaction-title">{{ t.description or t.category.name if t.category else "Transaction" }}</p>
+            <p class="transaction-meta">{{ t.date.strftime('%b %d') if t.date else "Today" }} - {{ t.category.name if t.category else "Uncategorized" }}</p>
+          </div>
+          <div class="transaction-right">
+            <strong class="amount-{{ t.type }}">{{ "+" if t.type == "income" else "-" }}${{ "{:,.2f}".format(t.amount) }}</strong>
+            <div class="transaction-actions">
+              <a href="{{ url_for('main.edit_transaction', transaction_id=t.transaction_id) }}" class="inline-link">Edit</a>
+              <form action="{{ url_for('main.delete_transaction', transaction_id=t.transaction_id) }}" method="POST" onsubmit="return confirm('Delete this transaction?')">
+                <button type="submit" class="inline-link danger">Delete</button>
+              </form>
+            </div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">No transactions yet. Use the + button to add one in seconds.</p>
+    {% endif %}
+  </section>
+
+  <div class="dashboard-skeleton htmx-indicator">
+    <div class="skeleton-line skeleton-lg"></div>
+    <div class="skeleton-grid">
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+    </div>
+    <div class="skeleton-line"></div>
+    <div class="skeleton-line"></div>
+  </div>
+
+  <button type="button" class="fab-button" data-open-transaction-modal aria-label="Add transaction">
+    +
+  </button>
+
+  {% set default_category_id = last_used_category_id or (transaction_categories[0].category_id if transaction_categories else "") %}
+
+  <div id="transaction-modal" class="modal-shell" aria-hidden="true">
+    <div class="modal-backdrop" data-close-transaction-modal></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Add transaction">
+      <div class="modal-head">
+        <h3>Add Transaction</h3>
+        <button type="button" class="close-btn" data-close-transaction-modal aria-label="Close">x</button>
+      </div>
+
+      <form
+        hx-post="{{ url_for('main.add_transaction') }}"
+        hx-target="#dashboard-content"
+        hx-swap="outerHTML"
+        hx-indicator=".dashboard-skeleton"
+        class="transaction-form"
+      >
+        <input type="hidden" name="type" value="expense">
+        <input type="hidden" name="category" value="{{ default_category_id }}">
+        <input type="hidden" name="active_scope" value="{{ 'household' if is_household else 'personal' }}">
+        <input type="hidden" name="active_household_id" value="{{ household_id or '' }}">
+        {% if is_household %}
+        <input type="hidden" name="household_id" value="{{ household_id }}">
+        {% endif %}
+
+        <label class="field-label" for="quick-amount">Amount</label>
+        <input id="quick-amount" type="number" name="amount" step="0.01" min="0.01" required class="amount-input" placeholder="0.00" />
+
+        <div class="chip-row">
+          <button type="button" class="chip" data-quick-amount="10">+$10</button>
+          <button type="button" class="chip" data-quick-amount="25">+$25</button>
+          <button type="button" class="chip" data-quick-amount="50">+$50</button>
+        </div>
+
+        <label class="field-label">Type</label>
+        <div class="chip-row" id="type-toggle">
+          <button type="button" class="chip is-selected" data-type="expense" data-transaction-type="expense">Expense</button>
+          <button type="button" class="chip" data-type="income" data-transaction-type="income">Income</button>
+        </div>
+
+        <label class="field-label">Category</label>
+        <div class="category-grid">
+          {% for cat in transaction_categories %}
+          <button
+            type="button"
+            class="category-chip {% if cat.category_id == default_category_id %}is-selected{% endif %}"
+            data-category-id="{{ cat.category_id }}"
+            {% if cat.category_id == default_category_id %}data-default-category="{{ cat.category_id }}"{% endif %}
+          >
+            {{ cat.name }}
+          </button>
+          {% endfor %}
+        </div>
+
+        <label class="field-label" for="description">Description (optional)</label>
+        <input id="description" type="text" name="description" placeholder="What was this for?" />
+
+        <button type="submit" class="btn-primary btn-block">Save transaction</button>
+      </form>
+    </div>
+  </div>
+</div>

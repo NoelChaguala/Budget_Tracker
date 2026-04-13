@@ -1,13 +1,27 @@
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime
 
 from sqlalchemy import func
 
 from ..models import Budget, Category, HouseholdMembership, Transaction, db
 
 
-def get_budget_report(user_id=None, household_id=None):
-    """Calculate budget report with spent amounts for current month."""
-    now = datetime.now()
+def get_budget_report(user_id=None, household_id=None, start_date=None, end_date=None):
+    """Calculate budget report with spent amounts within a date range."""
+    today = date.today()
+
+    if isinstance(start_date, datetime):
+        start_date = start_date.date()
+    if isinstance(end_date, datetime):
+        end_date = end_date.date()
+
+    if start_date is None and end_date is None:
+        start_date = today.replace(day=1)
+        end_date = today.replace(day=monthrange(today.year, today.month)[1])
+    elif start_date is None and end_date is not None:
+        start_date = end_date.replace(day=1)
+    elif end_date is None and start_date is not None:
+        end_date = start_date.replace(day=monthrange(start_date.year, start_date.month)[1])
 
     if household_id:
         budgets = Budget.query.filter_by(household_id=household_id).all()
@@ -18,8 +32,8 @@ def get_budget_report(user_id=None, household_id=None):
     for budget in budgets:
         spent_query = db.session.query(func.sum(Transaction.amount)).filter(
             Transaction.category_id == budget.category_id,
-            func.extract("month", Transaction.date) == now.month,
-            func.extract("year", Transaction.date) == now.year,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
         )
 
         if household_id:

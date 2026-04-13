@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}Reports & Insights - Budget Tracker{% endblock %}
+
+{% block content %}
+<section class="reports-page">
+  <header class="reports-header card">
+    <p class="reports-kicker">Financial Analytics</p>
+    <h1 class="page-title">Reports &amp; Insights</h1>
+    <p class="page-subtitle">See where your money is going across categories and months.</p>
+  </header>
+
+  <section class="reports-filter card" aria-label="Report filters">
+    <div class="reports-filter-grid">
+      <label for="report-start-date">From</label>
+      <input id="report-start-date" type="date" value="{{ start_date }}" />
+
+      <label for="report-end-date">To</label>
+      <input id="report-end-date" type="date" value="{{ end_date }}" />
+    </div>
+
+    <div class="reports-scope" role="group" aria-label="Scope">
+      <button
+        type="button"
+        class="scope-pill reports-scope-pill {% if scope == 'personal' %}active{% endif %}"
+        data-scope="personal"
+      >
+        Personal
+      </button>
+      <button
+        type="button"
+        class="scope-pill reports-scope-pill {% if scope == 'household' %}active{% endif %}"
+        data-scope="household"
+        {% if not households %}disabled{% endif %}
+      >
+        Household
+      </button>
+    </div>
+
+    <div class="reports-household-picker {% if scope != 'household' %}is-hidden{% endif %}">
+      <label for="report-household-id">Household</label>
+      <select id="report-household-id" {% if not households %}disabled{% endif %}>
+        {% for h in households %}
+        <option value="{{ h.household_id }}" {% if household_id == h.household_id %}selected{% endif %}>{{ h.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button id="report-export-button" type="button" class="btn-secondary reports-export-btn">
+      Download CSV
+    </button>
+  </section>
+
+  <section class="reports-stats" aria-live="polite">
+    <article class="summary-card">
+      <p>Total Spent</p>
+      <strong id="stat-total-spent">$0.00</strong>
+      <small id="stat-range-note">Selected range</small>
+    </article>
+    <article class="summary-card">
+      <p>Top Category</p>
+      <strong id="stat-top-category">-</strong>
+      <small id="stat-category-note">Based on expense totals</small>
+    </article>
+    <article class="summary-card">
+      <p>Average / Day</p>
+      <strong id="stat-avg-day">$0.00</strong>
+      <small id="stat-days-note">0 days</small>
+    </article>
+  </section>
+
+  <section class="reports-chart-stack">
+    <article class="card reports-chart-card">
+      <div class="card-header">
+        <h2>Spending by Category</h2>
+        <p class="card-subtle">Grouped by parent categories</p>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="spendingByCategoryChart" aria-label="Doughnut chart of spending by category" role="img"></canvas>
+      </div>
+    </article>
+
+    <article class="card reports-chart-card">
+      <div class="card-header">
+        <h2>Monthly Spending</h2>
+        <p class="card-subtle">Chronological view of totals</p>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="monthlySpendingChart" aria-label="Bar chart of monthly spending totals" role="img"></canvas>
+      </div>
+    </article>
+  </section>
+
+  <section id="reports-skeleton" class="reports-skeleton" aria-hidden="true">
+    <div class="skeleton-line skeleton-lg"></div>
+    <div class="skeleton-grid">
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+    </div>
+    <div class="skeleton-line skeleton-lg"></div>
+    <div class="skeleton-line"></div>
+  </section>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (() => {
+    const state = {
+      scope: "{{ scope }}",
+      householdId: "{{ household_id or '' }}",
+      startDate: "{{ start_date }}",
+      endDate: "{{ end_date }}",
+      categoryChart: null,
+      monthlyChart: null
+    };
+
+    const colorPalette = [
+      "#0f8b67",
+      "#1d6f8a",
+      "#b9791d",
+      "#ce5b44",
+      "#6a7b29",
+      "#7e5cad",
+      "#c24f88",
+      "#4d7280"
+    ];
+
+    const el = {
+      startDate: document.getElementById("report-start-date"),
+      endDate: document.getElementById("report-end-date"),
+      scopeButtons: document.querySelectorAll(".reports-scope-pill"),
+      householdSelect: document.getElementById("report-household-id"),
+      householdPicker: document.querySelector(".reports-household-picker"),
+      exportButton: document.getElementById("report-export-button"),
+      skeleton: document.getElementById("reports-skeleton"),
+      totalSpent: document.getElementById("stat-total-spent"),
+      topCategory: document.getElementById("stat-top-category"),
+      avgDay: document.getElementById("stat-avg-day"),
+      daysNote: document.getElementById("stat-days-note"),
+      rangeNote: document.getElementById("stat-range-note"),
+      categoryCanvas: document.getElementById("spendingByCategoryChart"),
+      monthlyCanvas: document.getElementById("monthlySpendingChart"),
+      toastRegion: document.getElementById("toast-region")
+    };
+
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
+    }
+
+    function showToast(message, type = "success") {
+      if (!el.toastRegion || !message) return;
+      const toast = document.createElement("div");
+      toast.className = `toast toast-${type}`;
+      toast.textContent = message;
+      el.toastRegion.appendChild(toast);
+      window.setTimeout(() => {
+        toast.classList.add("is-out");
+        window.setTimeout(() => toast.remove(), 220);
+      }, 2600);
+    }
+
+    function setLoading(isLoading) {
+      if (!el.skeleton) return;
+      el.skeleton.classList.toggle("is-visible", isLoading);
+      el.skeleton.setAttribute("aria-hidden", String(!isLoading));
+    }
+
+    function updateURL() {
+      const params = new URLSearchParams();
+      params.set("scope", state.scope);
+      params.set("start_date", state.startDate);
+      params.set("end_date", state.endDate);
+      if (state.scope === "household" && state.householdId) {
+        params.set("household_id", state.householdId);
+      }
+      const nextUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, "", nextUrl);
+      el.rangeNote.textContent = `${state.startDate} to ${state.endDate}`;
+    }
+
+    function currentQueryString() {
+      const params = new URLSearchParams();
+      params.set("scope", state.scope);
+      params.set("start_date", state.startDate);
+      params.set("end_date", state.endDate);
+      if (state.scope === "household" && state.householdId) {
+        params.set("household_id", state.householdId);
+      }
+      return params.toString();
+    }
+
+    function groupSmallCategories(rows) {
+      if (!Array.isArray(rows) || !rows.length) return [];
+      const sorted = [...rows].sort((a, b) => b.total - a.total);
+      if (sorted.length <= 6) return sorted;
+
+      const top = sorted.slice(0, 5);
+      const remainder = sorted.slice(5);
+      const otherTotal = remainder.reduce((sum, item) => sum + (item.total || 0), 0);
+      if (otherTotal > 0) {
+        top.push({ category: "Other", total: Number(otherTotal.toFixed(2)) });
+      }
+      return top;
+    }
+
+    function applyCategoryChart(rows) {
+      const grouped = groupSmallCategories(rows);
+      const labels = grouped.map((item) => item.category);
+      const data = grouped.map((item) => item.total);
+      const total = data.reduce((sum, value) => sum + value, 0);
+
+      if (!state.categoryChart) {
+        state.categoryChart = new Chart(el.categoryCanvas.getContext("2d"), {
+          type: "doughnut",
+          data: {
+            labels,
+            datasets: [{
+              data,
+              backgroundColor: labels.map((_, index) => colorPalette[index % colorPalette.length]),
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "58%",
+            plugins: {
+              legend: { position: "bottom" },
+              tooltip: {
+                callbacks: {
+                  label(context) {
+                    const value = context.raw || 0;
+                    const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
+                    return `${context.label}: ${formatMoney(value)} (${pct}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+        return;
+      }
+
+      state.categoryChart.data.labels = labels;
+      state.categoryChart.data.datasets[0].data = data;
+      state.categoryChart.data.datasets[0].backgroundColor = labels.map((_, index) => colorPalette[index % colorPalette.length]);
+      state.categoryChart.update();
+    }
+
+    function applyMonthlyChart(rows) {
+      const labels = rows.map((item) => item.month);
+      const data = rows.map((item) => item.total);
+      const nowMonth = new Date().toISOString().slice(0, 7);
+      const barColors = labels.map((month) => (month === nowMonth ? "#0f8b67" : "#bfd9cf"));
+
+      if (!state.monthlyChart) {
+        state.monthlyChart = new Chart(el.monthlyCanvas.getContext("2d"), {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [{
+              label: "Spent",
+              data,
+              backgroundColor: barColors,
+              borderRadius: 8,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback(value) {
+                    return formatMoney(value);
+                  }
+                }
+              }
+            }
+          }
+        });
+        return;
+      }
+
+      state.monthlyChart.data.labels = labels;
+      state.monthlyChart.data.datasets[0].data = data;
+      state.monthlyChart.data.datasets[0].backgroundColor = barColors;
+      state.monthlyChart.update();
+    }
+
+    function updateStats(payload) {
+      const totalSpent = payload?.summary?.total_spent || 0;
+      const topCategory = payload?.summary?.top_category || "-";
+      const start = new Date(state.startDate);
+      const end = new Date(state.endDate);
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const dayCount = Math.max(1, Math.floor((end - start) / msPerDay) + 1);
+      const avgPerDay = totalSpent / dayCount;
+
+      el.totalSpent.textContent = formatMoney(totalSpent);
+      el.topCategory.textContent = topCategory;
+      el.avgDay.textContent = formatMoney(avgPerDay);
+      el.daysNote.textContent = `${dayCount} day${dayCount === 1 ? "" : "s"}`;
+    }
+
+    async function fetchReportData() {
+      if (!state.startDate || !state.endDate) return;
+      if (state.startDate > state.endDate) {
+        showToast("The start date must be before the end date.", "danger");
+        return;
+      }
+
+      updateURL();
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/reports/spending?${currentQueryString()}`, {
+          headers: { Accept: "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Request failed (${response.status})`);
+        }
+        const payload = await response.json();
+        updateStats(payload);
+        applyCategoryChart(payload.by_category || []);
+        applyMonthlyChart(payload.by_month || []);
+      } catch (error) {
+        showToast("Unable to load report data. Please try again.", "danger");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function downloadCsv() {
+      setLoading(true);
+      try {
+        const response = await fetch(`/reports/export?${currentQueryString()}`);
+        if (!response.ok) {
+          throw new Error(`Export failed (${response.status})`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const today = new Date().toISOString().slice(0, 10);
+        link.href = url;
+        link.download = `transactions_${today}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        showToast("CSV downloaded successfully.", "success");
+      } catch (error) {
+        showToast("CSV export failed. Please try again.", "danger");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function syncScopeUI() {
+      el.scopeButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.scope === state.scope);
+      });
+      const showHousehold = state.scope === "household";
+      el.householdPicker.classList.toggle("is-hidden", !showHousehold);
+    }
+
+    function wireEvents() {
+      el.startDate.addEventListener("change", (event) => {
+        state.startDate = event.target.value;
+        fetchReportData();
+      });
+
+      el.endDate.addEventListener("change", (event) => {
+        state.endDate = event.target.value;
+        fetchReportData();
+      });
+
+      el.scopeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          state.scope = button.dataset.scope;
+          if (state.scope === "household" && !state.householdId && el.householdSelect?.value) {
+            state.householdId = el.householdSelect.value;
+          }
+          syncScopeUI();
+          fetchReportData();
+        });
+      });
+
+      if (el.householdSelect) {
+        el.householdSelect.addEventListener("change", (event) => {
+          state.householdId = event.target.value;
+          if (state.scope === "household") {
+            fetchReportData();
+          }
+        });
+      }
+
+      el.exportButton.addEventListener("click", downloadCsv);
+    }
+
+    wireEvents();
+    syncScopeUI();
+    fetchReportData();
+  })();
+</script>
+{% endblock %}
