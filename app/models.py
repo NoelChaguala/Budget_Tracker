@@ -2,7 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date
-from sqlalchemy import and_
+from sqlalchemy import and_, CheckConstraint, Index
 
 db = SQLAlchemy()
 
@@ -128,9 +128,13 @@ class Transaction(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)  # NULL = personal
     category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=True)
+    recurring_id = db.Column(db.Integer, db.ForeignKey("recurring_transaction.id"), nullable=True)
 
     def is_personal(self):
         return self.household_id is None
+
+    def is_recurring(self):
+        return self.recurring_id is not None
 
     def __repr__(self):
         scope = "Personal" if self.is_personal() else "Household"

@@ -1,0 +1,130 @@
+{
+  "users": [
+    {
+      "username": "alice_walker",
+      "email": "alice@example.com",
+      "password": "securepassword123"
+    },
+    {
+      "username": "bob_builder",
+      "email": "bob@example.com",
+      "password": "builditbetter456"
+    },
+    {
+      "username": "charlie_chef",
+      "email": "charlie@example.com",
+      "password": "kitchenmaster789"
+    }
+  ],
+  "households": [
+    {
+      "name": "The Shared Loft",
+      "members": [
+        { "username": "alice_walker", "role": "owner" },
+        { "username": "bob_builder", "role": "member" }
+      ]
+    },
+    {
+      "name": "Euro Trip 2026",
+      "members": [
+        { "username": "alice_walker", "role": "owner" },
+        { "username": "charlie_chef", "role": "member" }
+      ]
+    }
+  ],
+  "categories": [
+    { "name": "Income", "type": "system" },
+    { "name": "Food & Dining", "type": "system" },
+    { "name": "Transportation", "type": "system" },
+    { "name": "Entertainment", "type": "system" },
+    { "name": "Housing", "household": "The Shared Loft" },
+    { "name": "Groceries", "household": "The Shared Loft", "parent": "Food & Dining" },
+    { "name": "Dining Out", "household": "The Shared Loft", "parent": "Food & Dining" },
+    { "name": "Games", "user": "bob_builder", "parent": "Entertainment" },
+    { "name": "Flight Tickets", "household": "Euro Trip 2026", "parent": "Transportation" }
+  ],
+  "transactions": [
+    {
+      "amount": 4500.00,
+      "type": "income",
+      "date": "2026-04-01",
+      "description": "April Salary",
+      "category": "Income",
+      "user": "alice_walker"
+    },
+    {
+      "amount": 2200.00,
+      "type": "expense",
+      "date": "2026-04-01",
+      "description": "Loft Rent Payment",
+      "category": "Housing",
+      "user": "alice_walker",
+      "household": "The Shared Loft"
+    },
+    {
+      "amount": 85.20,
+      "type": "expense",
+      "date": "2026-04-03",
+      "description": "Weekly Bulk Groceries",
+      "category": "Groceries",
+      "user": "bob_builder",
+      "household": "The Shared Loft"
+    },
+    {
+      "amount": 59.99,
+      "type": "expense",
+      "date": "2026-04-05",
+      "description": "New RPG Game",
+      "category": "Games",
+      "user": "bob_builder"
+    },
+    {
+      "amount": 450.00,
+      "type": "expense",
+      "date": "2026-04-08",
+      "description": "Deposit for Paris Flight",
+      "category": "Flight Tickets",
+      "user": "charlie_chef",
+      "household": "Euro Trip 2026"
+    },
+    {
+      "amount": 42.50,
+      "type": "expense",
+      "date": "2026-04-10",
+      "description": "Sushi Night",
+      "category": "Dining Out",
+      "user": "alice_walker",
+      "household": "The Shared Loft"
+    }
+  ],
+  "budgets": [
+    {
+      "description": "Loft Housing Budget",
+      "month": "2026-04-01",
+      "limit_amount": 2500,
+      "category": "Housing",
+      "household": "The Shared Loft"
+    },
+    {
+      "description": "Loft Food & Dining Cap",
+      "month": "2026-04-01",
+      "limit_amount": 800,
+      "category": "Food & Dining",
+      "household": "The Shared Loft"
+    },
+    {
+      "description": "Bob Personal Entertainment",
+      "month": "2026-04-01",
+      "limit_amount": 150,
+      "category": "Entertainment",
+      "user": "bob_builder"
+    },
+    {
+      "description": "Euro Trip Transport Fund",
+      "month": "2026-04-01",
+      "limit_amount": 2000,
+      "category": "Transportation",
+      "household": "Euro Trip 2026"
+    }
+  ]
+}
