@@ -277,6 +277,13 @@ def recurring_page():
     preview = get_recurring_preview([rule for rule in rules if rule.is_active], days=30)
     next_occurrences = {rule.id: compute_next_occurrence(rule) for rule in rules}
 
+    transaction_categories = Category.query.filter(
+        or_(
+            Category.user_id == current_user.id,
+            Category.is_system == True
+        )
+    ).order_by(Category.name).all()
+
     if request.method == "POST":
         data = request.form if request.form else request.get_json(force=True, silent=True) or {}
         amount = float(data.get("amount", 0)) if data.get("amount") else 0
@@ -325,6 +332,7 @@ def recurring_page():
         recurring_rules=rules, 
         preview=preview, 
         next_occurrences=next_occurrences,
+        transaction_categories=transaction_categories,
         date=date,
         today=date.today()
     )
@@ -348,7 +356,7 @@ def toggle_recurring(recurring_id):
     recurring = query.first_or_404()
     recurring.is_active = not recurring.is_active
     db.session.commit()
-    return jsonify({"id": recurring.id, "is_active": recurring.is_active})
+    return redirect(request.referrer or url_for('main.recurring_page'))
 
 
 @bp.route("/recurring/<int:recurring_id>", methods=["DELETE", "POST"])
@@ -376,7 +384,7 @@ def delete_recurring(recurring_id):
 
     db.session.delete(recurring)
     db.session.commit()
-    return jsonify({"id": recurring_id, "deleted": True})
+    return redirect(request.referrer or url_for('main.recurring_page'))
 
 
 @bp.route("/api/recurring/preview")

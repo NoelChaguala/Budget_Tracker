@@ -1,193 +1,188 @@
-# Budget Tracking Implementation Guide
+# Budget Implementation Guide
 
 ## Overview
 
-This implementation bridges the gap between your Budget model and Transaction records by providing dynamic budget tracking with real-time updates when transactions are added, edited, or deleted.
+Budgets in Budget Tracker are monthly spending limits scoped to either a personal user or a household. Budget progress is calculated dynamically at request time by summing transactions against the budget's category and scope — there is no cached or stored "spent" value.
 
-## Features Implemented
+---
 
-### ✅ Dynamic Budget Calculation
-- Automatically calculates "Spent" amounts for each budget category
-- Updates in real-time when transactions change (TSK-007 integration)
-- Works for both personal and household budgets
+## Data Model
 
-### ✅ Visual Budget Status
-- Progress bars with color-coded feedback:
-  - Green (≤70%): Good spending control
-  - Yellow (70-90%): Approaching limit  
-  - Red (>90%): Over budget warning
-- Shows current spending vs. limit and remaining amount
-
-### ✅ Budget Management
-- Create budgets for specific categories
-- Update existing budgets (prevents duplicates)
-- Scope support for both personal and household budgets
-
-## Database Schema Changes
-
-### Budget Model Updates
 ```python
 class Budget(db.Model):
-    budget_id = db.Column(db.Integer, primary_key=True)
-    month = db.Column(db.Date, nullable=False)
-    limit_amount = db.Column(db.Float, nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=False)  # NEW
-    
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)
+    budget_id     = db.Column(db.Integer, primary_key=True)
+    month         = db.Column(db.Date, nullable=False)        # Always stored as first day of month
+    limit_amount  = db.Column(db.Float, nullable=False)
+    description   = db.Column(db.String(255), nullable=True)
+    category_id   = db.Column(db.ForeignKey("category.category_id"), nullable=False)
+    user_id       = db.Column(db.ForeignKey("user.id"), nullable=True)
+    household_id  = db.Column(db.ForeignKey("household.household_id"), nullable=True)
 ```
 
-**⚠️ IMPORTANT: Database Migration Required**
+### Scope rules
 
-If you have existing data, run the migration script:
-```bash
-python update_budget_schema.py
-```
+Exactly one of `user_id` or `household_id` must be set per budget row. `budget.is_personal()` returns `True` when `household_id` is `None`.
 
-This script will:
-1. Backup existing budget data
-2. Add the new `category_id` column
-3. Restore data with default category assignments
-4. Update foreign key constraints
+| Scope | `user_id` | `household_id` |
+|---|---|---|
+| Personal | set | NULL |
+| Household | NULL | set |
 
-## Usage
+---
 
-### Creating a Budget
+## Core Utility — `get_budget_report()`
 
-1. **Personal Budget**: Go to Personal Dashboard → "Create a Budget" link
-2. **Household Budget**: Go to Household Dashboard → "Create a Budget" link
+Located in `app/main/utils.py`. Called by dashboard and budget page routes.
 
-3. Select a category from the dropdown
-4. Enter a monthly limit amount
-5. Click "Set Budget"
-
-### Budget Status Display
-
-The dashboard now shows:
-- **Category Name**: The budget category
-- **Spent/Limit**: Current spending vs. budget limit
-- **Progress Bar**: Visual representation with color coding
-- **Remaining**: Amount left in the budget
-
-### Template Architecture
-
-The budget data is passed from Python routes to Jinja2 templates:
-
-**In routes.py:**
 ```python
-budget_report = get_budget_report(user_id=current_user.id, household_id=None)
-return render_template("personal.html", budget_report=budget_report)
+get_budget_report(user_id=None, household_id=None, start_date=None, end_date=None)
 ```
 
-**In templates:**
+Returns a list of dicts, one per budget:
+
+```python
+{
+    "budget_id":   int,
+    "category":    str,       # category name
+    "category_id": int,
+    "month":       date,
+    "limit":       float,
+    "spent":       float,     # sum of matching expense transactions
+    "remaining":   float,     # limit - spent (negative = over budget)
+    "percent":     float,     # capped at 100
+    "description": str | None,
+}
+```
+
+If no date range is supplied, it defaults to the current calendar month.
+
+Spent amounts are calculated by summing `Transaction.amount` where:
+- `Transaction.category_id == budget.category_id`
+- `Transaction.date` falls within the date range
+- Scope matches (personal: `household_id IS NULL`, household: `household_id = X`)
+
+> **Note:** Roll-up budgeting (child category spend counting toward a parent budget) is handled separately via `get_budget_status()` in `utils.py`, which uses `Category.get_all_subcategory_ids()`.
+
+---
+
+## Routes
+
+All budget routes live in `app/main/routes.py` (or your main blueprint file).
+
+### `GET /budgets`
+Renders `budgets.html` with:
+- `personal_report` — result of `get_budget_report(user_id=...)`
+- `household_reports` — list of `{ household, report }` dicts, one per household the user belongs to
+
+### `GET /budgets/add` + `POST /budgets/add`
+Renders `add_budget.html`. On POST:
+1. Validates scope, category, limit, and month
+2. Verifies the user owns or is a member of the target household
+3. Verifies the category belongs to the correct scope
+4. Creates and commits a `Budget` record
+5. Redirects to `/budgets`
+
+### `GET /budget/edit/<id>` + `POST /budget/edit/<id>`
+Renders `edit_budget.html`. Editable fields: `limit_amount`, `month`, `description`. Category is fixed after creation.
+
+On POST, redirects to the URL in the `next` form field if present, otherwise to `/budgets`. This allows the dashboard modal to redirect back to the dashboard after saving.
+
+### `POST /budgets/<id>/delete`
+Verifies ownership/membership, deletes the budget, redirects to `/budgets`.
+
+---
+
+## Templates
+
+| Template | Purpose |
+|---|---|
+| `budgets.html` | Budget hub — lists personal and household budgets with progress bars, edit and delete actions |
+| `add_budget.html` | Full-page form to create a new budget |
+| `edit_budget.html` | Full-page form to edit limit, month, and description |
+| `partials/dashboard_content.html` | Includes budget progress rows on the dashboard and the budget edit modal |
+
+### Dashboard integration
+
+The dashboard budget section renders progress bars for the active scope (personal or household). Each row includes an **Edit** button that opens a modal (`#budget-modal`) pre-populated via `data-*` attributes:
+
 ```html
-{% if budget_report %}
-  {% for b in budget_report %}
-    <!-- Display budget data -->
-  {% endfor %}
-{% endif %}
+<button type="button"
+  data-open-budget-modal
+  data-category="{{ item.category }}"
+  data-month="{{ item.month.strftime('%Y-%m') }}"
+  data-limit="{{ item.limit }}"
+  data-description="{{ item.description or '' }}"
+  data-action="{{ url_for('main.edit_budget', budget_id=item.budget_id) }}">
+  Edit
+</button>
 ```
 
-This approach provides better separation of concerns and easier debugging.
+The modal posts directly to the `edit_budget` route with a hidden `next` field set to `window.location.pathname`, so the user is returned to the dashboard after saving rather than the budgets page.
 
-### Automatic Updates
+---
 
-When you:
-- ✅ Add a transaction → Budget status updates immediately
-- ✅ Edit a transaction → Budget recalculates automatically  
-- ✅ Delete a transaction → Budget adjusts in real-time
+## Category Scoping
 
-## API Endpoints
+Categories are scoped the same way budgets are:
 
-### GET /budget/create
-Displays the budget creation form
-- `?household_id=X` parameter for household budgets
+| Category type | `user_id` | `household_id` | `is_system` |
+|---|---|---|---|
+| System | NULL | NULL | True |
+| Personal | set | NULL | False |
+| Household | NULL | set | False |
 
-### POST /budget/create
-Creates or updates a budget
-- `category_id`: Category to budget for
-- `amount_limit`: Monthly spending limit
-- `household_id`: Optional, for household budgets
+When building the category dropdown for budget creation, the route queries:
+- For personal budgets: `user_id == current_user.id OR is_system == True`
+- For household budgets: `household_id == X OR is_system == True`
 
-## Code Structure
+This prevents a user from assigning a household category to a personal budget and vice versa.
 
-### Core Functions (`app/routes.py`)
+---
+
+## Progress Bar States
+
+| Class | Threshold | Meaning |
+|---|---|---|
+| `safe` | < 75% spent | On track |
+| `warning` | 75–99% spent | Approaching limit |
+| `danger` | ≥ 100% spent | Over budget |
+
+Applied to `.progress-fill` in the template. The CSS animates the fill width via the `--target` CSS variable.
+
+---
+
+## Adding a New Budget Programmatically
 
 ```python
-def get_budget_report(user_id=None, household_id=None):
-    """Calculate budget report with spent amounts for current month."""
-    # Returns list of budget data with spent, remaining, and percentage
+from datetime import date
+from app.models import Budget, db
+
+budget = Budget(
+    user_id=user.id,          # or None for household
+    household_id=None,         # or household_id for household
+    category_id=category.category_id,
+    limit_amount=500.00,
+    month=date(2025, 1, 1),   # always first day of month
+    description="Grocery allowance",
+)
+db.session.add(budget)
+db.session.commit()
 ```
 
-### Templates Updated
-
-- `app/templates/personal.html` - Added budget status section
-- `app/templates/household.html` - Added budget status section
-- `app/templates/create_budget.html` - New budget creation form
-
-## Testing
-
-Run the test script to verify functionality:
-```bash
-python test_budget_implementation.py
-```
-
-This test:
-- Creates test user, category, and budget
-- Adds sample transactions
-- Verifies budget calculations are correct
-- Tests the `get_budget_report()` function
+---
 
 ## Troubleshooting
 
-### Database Errors
-If you see "no such column: budget.category_id":
-1. Run the migration script: `python update_budget_schema.py`
-2. Restart your application
+**Budget progress not updating after a transaction**
+- Confirm the transaction has a `category_id` set.
+- Confirm the transaction `date` falls within the budget's month.
+- Confirm the transaction `type` is `"expense"` — income transactions are not subtracted from budgets.
+- Confirm the transaction scope matches the budget scope (personal vs. household).
 
-### Missing Categories
-If categories don't appear in the dropdown:
-1. Ensure categories exist in the database
-2. For personal budgets, categories must belong to the user
-3. For household budgets, categories must belong to the household
+**Category not appearing in the add budget dropdown**
+- Personal budgets: category must have `user_id == current_user.id` or `is_system == True`.
+- Household budgets: category must have `household_id` matching the target household or `is_system == True`.
+- If a category was just created inline, confirm the `create_category_inline` endpoint saved it with the correct scope.
 
-### Budget Not Updating
-If budget status doesn't update after transaction changes:
-1. Verify the transaction has a category_id
-2. Check that the transaction date is in the current month
-3. Ensure the transaction type is "expense" (income doesn't count against budgets)
-
-## Integration with TSK-007
-
-This implementation fully integrates with the transaction editing/deletion functionality:
-
-- ✅ When editing a transaction amount → budget recalculates
-- ✅ When changing transaction category → budget updates for both old and new categories
-- ✅ When deleting a transaction → budget amount decreases
-- ✅ When adding a transaction → budget amount increases
-
-## Next Steps
-
-Consider adding these enhancements:
-1. **Budget History**: Track budget performance over time
-2. **Alerts**: Email/notifications when approaching limits
-3. **Reports**: Monthly spending reports by category
-4. **Multi-month**: Budgets that span multiple months
-5. **Income Tracking**: Separate tracking for income vs. expenses
-
-## Files Modified
-
-- `app/models.py` - Added category_id to Budget model
-- `app/routes.py` - Added budget calculation and creation logic
-- `app/templates/personal.html` - Added budget status display
-- `app/templates/household.html` - Added budget status display
-- `app/templates/create_budget.html` - New budget creation form
-- `update_budget_schema.py` - Database migration script
-- `test_budget_implementation.py` - Test verification script
-
-## Support
-
-For questions or issues with this implementation:
-1. Check the troubleshooting section above
-2. Run the test script to verify functionality
-3. Review the database migration if you have existing data
+**`/budget/edit/<id>` redirecting to the wrong page**
+- The route reads a `next` field from the POST body. Ensure the form or modal includes `<input type="hidden" name="next" value="...">`. If absent, it falls back to `/budgets`.
