@@ -85,21 +85,32 @@
   <section class="dashboard-card">
     <div class="card-header">
       <h2>Budget Progress</h2>
-      <a href="{{ url_for('main.create_budget') }}" class="muted-link">Edit limits</a>
+      <a href="{{ url_for('main.view_budgets') }}" class="muted-link">Edit limits</a>
     </div>
     {% if budget_items %}
       {% for item in budget_items %}
       <article class="budget-row {% if item.remaining < 0 %}is-over{% endif %}">
         <div class="budget-row-top">
           <p class="budget-name">{{ item.category }}</p>
-          <p class="budget-values">${{ "{:,.0f}".format(item.spent) }} / ${{ "{:,.0f}".format(item.limit) }}</p>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <p class="budget-values">${{ "{:,.0f}".format(item.spent) }} / ${{ "{:,.0f}".format(item.limit) }}</p>
+            <button type="button" class="inline-link"
+                    data-open-budget-modal
+                    data-budget-id="{{ item.budget_id }}"
+                    data-category="{{ item.category }}"
+                    data-month="{{ item.month }}"
+                    data-limit="{{ item.limit }}"
+                    data-description="{{ item.description }}"
+                    data-action="{{ url_for('main.edit_budget', budget_id=item.budget_id) }}"
+                    aria-label="Edit {{ item.category }} budget">Edit</button>
+          </div>
         </div>
         <div class="progress-track">
           <div class="progress-fill {% if item.percent >= 90 %}danger{% elif item.percent >= 70 %}warning{% else %}safe{% endif %}" style="--target: {{ item.percent|round(1) }}%;"></div>
         </div>
         <p class="budget-meta">
           {% if item.remaining >= 0 %}
-            ${{ "{:,.0f}".format(item.remaining) }} left - {{ days_remaining }} days remaining
+            ${{ "{:,.0f}".format(item.remaining) }} left · {{ days_remaining }} days remaining
           {% else %}
             You're ${{ "{:,.0f}".format(item.remaining|abs) }} over budget
           {% endif %}
@@ -121,11 +132,14 @@
         {% for t in transactions %}
         <li class="transaction-item">
           <div>
-            <p class="transaction-title">{{ t.description or t.category.name if t.category else "Transaction" }}</p>
-            <p class="transaction-meta">{{ t.date.strftime('%b %d') if t.date else "Today" }} - {{ t.category.name if t.category else "Uncategorized" }}</p>
+            <p class="transaction-title">{{ t.description or (t.category.name if t.category else "Transaction") }}</p>
+            <p class="transaction-meta">{{ t.date.strftime('%b %d') if t.date else "Today" }} · {{ t.category.name if t.category else "Uncategorized" }}</p>
           </div>
           <div class="transaction-right">
             <strong class="amount-{{ t.type }}">{{ "+" if t.type == "income" else "-" }}${{ "{:,.2f}".format(t.amount) }}</strong>
+            {% if t.recurring_id %}
+            <span title="Generated from recurring rule" style="font-size: 0.75rem;">↺</span>
+            {% endif %}
             <div class="transaction-actions">
               <a href="{{ url_for('main.edit_transaction', transaction_id=t.transaction_id) }}" class="inline-link">Edit</a>
               <form action="{{ url_for('main.delete_transaction', transaction_id=t.transaction_id) }}" method="POST" onsubmit="return confirm('Delete this transaction?')">
@@ -152,18 +166,18 @@
     <div class="skeleton-line"></div>
   </div>
 
-  <button type="button" class="fab-button" data-open-transaction-modal aria-label="Add transaction">
-    +
-  </button>
+  <button type="button" class="fab-button" data-open-transaction-modal aria-label="Add transaction">+</button>
 
+  {# Build category data for JS — scoped to current dashboard view #}
   {% set default_category_id = last_used_category_id or (transaction_categories[0].category_id if transaction_categories else "") %}
 
   <div id="transaction-modal" class="modal-shell" aria-hidden="true">
     <div class="modal-backdrop" data-close-transaction-modal></div>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Add transaction">
+
       <div class="modal-head">
         <h3>Add Transaction</h3>
-        <button type="button" class="close-btn" data-close-transaction-modal aria-label="Close">x</button>
+        <button type="button" class="close-btn" data-close-transaction-modal aria-label="Close">×</button>
       </div>
 
       <form
@@ -173,48 +187,224 @@
         hx-indicator=".dashboard-skeleton"
         class="transaction-form"
       >
-        <input type="hidden" name="type" value="expense">
-        <input type="hidden" name="category" value="{{ default_category_id }}">
         <input type="hidden" name="active_scope" value="{{ 'household' if is_household else 'personal' }}">
         <input type="hidden" name="active_household_id" value="{{ household_id or '' }}">
         {% if is_household %}
         <input type="hidden" name="household_id" value="{{ household_id }}">
         {% endif %}
+        <input type="hidden" name="date" value="{{ date.today().isoformat() }}">
+        <input type="hidden" name="make_recurring" id="modal_make_recurring" value="off">
 
-        <label class="field-label" for="quick-amount">Amount</label>
-        <input id="quick-amount" type="number" name="amount" step="0.01" min="0.01" required class="amount-input" placeholder="0.00" />
-
-        <div class="chip-row">
-          <button type="button" class="chip" data-quick-amount="10">+$10</button>
-          <button type="button" class="chip" data-quick-amount="25">+$25</button>
-          <button type="button" class="chip" data-quick-amount="50">+$50</button>
+        {# Amount #}
+        <div class="form-group">
+          <label class="field-label" for="modal-amount">Amount</label>
+          <input id="modal-amount" type="number" name="amount"
+                 step="0.01" min="0.01" required
+                 class="amount-input" placeholder="0.00">
+          <div class="chip-row" style="margin-top: 8px;">
+            <button type="button" class="chip" data-quick-amount="10">$10</button>
+            <button type="button" class="chip" data-quick-amount="25">$25</button>
+            <button type="button" class="chip" data-quick-amount="50">$50</button>
+            <button type="button" class="chip" data-quick-amount="100">$100</button>
+          </div>
         </div>
 
-        <label class="field-label">Type</label>
-        <div class="chip-row" id="type-toggle">
-          <button type="button" class="chip is-selected" data-type="expense" data-transaction-type="expense">Expense</button>
-          <button type="button" class="chip" data-type="income" data-transaction-type="income">Income</button>
+        {# Type #}
+        <div class="form-group">
+          <label class="field-label">Type</label>
+          <div class="chip-row" id="type-toggle">
+            <button type="button" class="chip is-selected"
+                    data-type="expense" data-transaction-type="expense">Expense</button>
+            <button type="button" class="chip"
+                    data-type="income" data-transaction-type="income">Income</button>
+            <input type="hidden" name="type" value="expense">
+          </div>
         </div>
 
-        <label class="field-label">Category</label>
-        <div class="category-grid">
-          {% for cat in transaction_categories %}
-          <button
-            type="button"
-            class="category-chip {% if cat.category_id == default_category_id %}is-selected{% endif %}"
-            data-category-id="{{ cat.category_id }}"
-            {% if cat.category_id == default_category_id %}data-default-category="{{ cat.category_id }}"{% endif %}
-          >
-            {{ cat.name }}
-          </button>
-          {% endfor %}
+        {# Category #}
+        <div class="form-group">
+          <label class="field-label" for="modal-category">Category</label>
+          <select id="modal-category" name="category" required>
+            <option value="" disabled selected>Select a category</option>
+            {% for cat in transaction_categories %}
+            <option value="{{ cat.category_id }}"
+                    {% if cat.category_id == default_category_id %}selected{% endif %}>
+              {{ cat.name }}
+            </option>
+            {% endfor %}
+          </select>
         </div>
 
-        <label class="field-label" for="description">Description (optional)</label>
-        <input id="description" type="text" name="description" placeholder="What was this for?" />
+        {# Description #}
+        <div class="form-group">
+          <label class="field-label" for="modal-description">Description <span class="card-subtle" style="font-weight: 600;">— optional</span></label>
+          <input id="modal-description" type="text" name="description"
+                 placeholder="What was this for?">
+        </div>
+
+        {# Recurring #}
+        <div class="form-group">
+          <label class="field-label">Recurring</label>
+          <div class="chip-row">
+            <button type="button" class="chip" id="modal-recurring-toggle">Make this recurring</button>
+          </div>
+        </div>
+
+        <div id="recurring-options" style="display: none;">
+          <div class="form-group">
+            <label class="field-label" for="modal-frequency">Frequency</label>
+            <select name="frequency" id="modal-frequency">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly" selected>Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="field-label" for="modal-start-date">Start date</label>
+            <input type="date" name="start_date" id="modal-start-date"
+                   value="{{ date.today().isoformat() }}">
+          </div>
+          <div class="form-group">
+            <label class="field-label" for="modal-end-date">
+              End date <span class="card-subtle" style="font-weight: 600;">— optional</span>
+            </label>
+            <input type="date" name="end_date" id="modal-end-date">
+          </div>
+        </div>
 
         <button type="submit" class="btn-primary btn-block">Save transaction</button>
       </form>
+
     </div>
   </div>
+
+  {# ---- Budget Edit Modal ---- #}
+  <div id="budget-modal" class="modal-shell" aria-hidden="true">
+    <div class="modal-backdrop" data-close-budget-modal></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Edit budget">
+
+      <div class="modal-head">
+        <h3 id="budget-modal-title">Edit Budget</h3>
+        <button type="button" class="close-btn"
+                data-close-budget-modal aria-label="Close">×</button>
+      </div>
+
+      <form id="budget-modal-form" method="POST" action="">
+
+        <div class="form-group">
+          <label class="field-label">Category</label>
+          <p id="budget-modal-category"
+             style="font-weight: 700; font-size: 0.95rem; margin: 0;"></p>
+          <span class="form-hint">Category cannot be changed after creation.</span>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="budget-modal-month">Month</label>
+          <input type="month" id="budget-modal-month" name="month" required>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="budget-modal-limit">Monthly limit</label>
+          <input type="number" id="budget-modal-limit" name="amount_limit"
+                 step="0.01" min="0.01" required class="amount-input"
+                 placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="budget-modal-desc">
+            Description <span class="form-hint" style="display:inline;">— optional</span>
+          </label>
+          <input type="text" id="budget-modal-desc" name="description"
+                 placeholder="e.g. Monthly grocery allowance">
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Update budget</button>
+          <button type="button" class="btn-secondary"
+                  data-close-budget-modal>Cancel</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
 </div>
+
+<script>
+(() => {
+  const modal = document.getElementById('budget-modal');
+  const form  = document.getElementById('budget-modal-form');
+
+  function openBudgetModal(btn) {
+    document.getElementById('budget-modal-title').textContent =
+      'Edit ' + btn.dataset.category;
+    document.getElementById('budget-modal-category').textContent =
+      btn.dataset.category;
+    document.getElementById('budget-modal-month').value  = btn.dataset.month;
+    document.getElementById('budget-modal-limit').value  = btn.dataset.limit;
+    document.getElementById('budget-modal-desc').value   = btn.dataset.description || '';
+    form.action = btn.dataset.action;
+    modal.classList.add('is-open');
+    document.body.classList.add('modal-open');
+    document.getElementById('budget-modal-limit').focus();
+  }
+
+  function closeBudgetModal() {
+    modal.classList.remove('is-open');
+    document.body.classList.remove('modal-open');
+  }
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-open-budget-modal]')) {
+      openBudgetModal(e.target.closest('[data-open-budget-modal]'));
+    }
+    if (e.target.closest('[data-close-budget-modal]')) {
+      closeBudgetModal();
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeBudgetModal();
+  });
+})();
+</script>
+
+<script>
+(() => {
+  // --- Type chips ---
+  const typeToggle = document.getElementById('type-toggle');
+  if (typeToggle) {
+    typeToggle.addEventListener('click', e => {
+      const chip = e.target.closest('[data-transaction-type]');
+      if (!chip) return;
+      const typeInput = typeToggle.querySelector('input[type="hidden"]');
+      if (typeInput) typeInput.value = chip.dataset.transactionType;
+      typeToggle.querySelectorAll('.chip').forEach(c =>
+        c.classList.toggle('is-selected', c === chip)
+      );
+    });
+  }
+
+  // --- Quick amount chips ---
+  document.addEventListener('click', e => {
+    const chip = e.target.closest('[data-quick-amount]');
+    if (!chip) return;
+    const input = document.getElementById('modal-amount');
+    if (input) { input.value = chip.dataset.quickAmount; input.focus(); }
+  });
+
+  // --- Recurring toggle ---
+  const recurringToggle = document.getElementById('modal-recurring-toggle');
+  const recurringOptions = document.getElementById('recurring-options');
+  const makeRecurringInput = document.getElementById('modal_make_recurring');
+
+  if (recurringToggle && recurringOptions) {
+    recurringToggle.addEventListener('click', function () {
+      const isActive = this.classList.toggle('is-selected');
+      recurringOptions.style.display = isActive ? 'block' : 'none';
+      if (makeRecurringInput) makeRecurringInput.value = isActive ? 'on' : 'off';
+    });
+  }
+})();
+</script>

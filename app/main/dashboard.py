@@ -114,6 +114,8 @@ def _build_dashboard_context(household=None):
     last_used_category_id = transactions[0].category_id if transactions and transactions[0].category_id else None
 
     return {
+        "date": date,
+        "today": today,
         "is_household": is_household,
         "household": household,
         "household_id": household_id,
@@ -169,7 +171,27 @@ def dashboard_content():
 @bp.route("/settings")
 @login_required
 def settings():
-    return render_template("settings.html")
+    personal_categories = (
+        Category.query.filter((Category.user_id == current_user.id) | (Category.is_system == True))
+        .order_by(Category.name)
+        .all()
+    )
+
+    household_categories = {}
+    for h in current_user.households:
+        household_categories[h.household_id] = (
+            Category.query.filter(
+                (Category.household_id == h.household_id) | (Category.is_system == True)
+            )
+            .order_by(Category.name)
+            .all()
+        )
+
+    return render_template(
+        "settings.html",
+        personal_categories=personal_categories,
+        household_categories=household_categories,
+    )
 
 
 @bp.route("/profile")

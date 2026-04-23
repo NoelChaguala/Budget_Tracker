@@ -3,10 +3,77 @@
 {% block title %}Settings — Budget Tracker{% endblock %}
 
 {% block content %}
-<h1 class="page-title">Settings</h1>
-<p class="page-subtitle">Manage your app preferences.</p>
+<div class="dashboard-content">
 
-<div class="card">
-  <p class="empty">Settings page — coming soon.</p>
+  <div>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-subtitle">Manage your preferences and categories.</p>
+  </div>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Personal categories</h2>
+    </div>
+
+    <ul class="transaction-list">
+      {% for cat in personal_categories %}
+      <li class="transaction-item">
+        <span class="transaction-title">{{ cat.name }}</span>
+        {% if not cat.is_system %}
+        <form method="POST" action="{{ url_for('categories.delete_category', category_id=cat.category_id) }}">
+          <input type="hidden" name="next" value="{{ url_for('main.settings') }}">
+          <button type="submit" class="inline-link danger">Delete</button>
+        </form>
+        {% else %}
+        <span class="card-subtle">System</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form method="POST" action="{{ url_for('categories.create_category') }}"
+          style="display: flex; gap: 8px; margin-top: 16px;">
+      <input type="hidden" name="scope" value="personal">
+      <input type="hidden" name="next" value="{{ url_for('main.settings') }}">
+      <input type="text" name="name" placeholder="New category name"
+             style="flex: 1;" required>
+      <button type="submit" class="btn-primary">Add</button>
+    </form>
+  </section>
+
+  {% for household in current_user.households %}
+  {% set h_cats = household_categories[household.household_id] %}
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>{{ household.name }} categories</h2>
+    </div>
+
+    <ul class="transaction-list">
+      {% for cat in h_cats %}
+      <li class="transaction-item">
+        <span class="transaction-title">{{ cat.name }}</span>
+        {% if not cat.is_system %}
+        <form method="POST" action="{{ url_for('categories.delete_category', category_id=cat.category_id) }}">
+          <input type="hidden" name="next" value="{{ url_for('main.settings') }}">
+          <button type="submit" class="inline-link danger">Delete</button>
+        </form>
+        {% else %}
+        <span class="card-subtle">System</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form method="POST" action="{{ url_for('categories.create_category') }}"
+          style="display: flex; gap: 8px; margin-top: 16px;">
+      <input type="hidden" name="scope" value="{{ household.household_id }}">
+      <input type="hidden" name="next" value="{{ url_for('main.settings') }}">
+      <input type="text" name="name" placeholder="New category name"
+             style="flex: 1;" required>
+      <button type="submit" class="btn-primary">Add</button>
+    </form>
+  </section>
+  {% endfor %}
+
 </div>
 {% endblock %}

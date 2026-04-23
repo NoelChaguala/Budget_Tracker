@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Recurring Transactions — Budget Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard-content">
+
+  <div>
+    <h1 class="page-title">Recurring Transactions</h1>
+    <p class="page-subtitle">Manage repeating income and expense rules for personal and household budgets.</p>
+  </div>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Active recurring rules</h2>
+      <span class="card-subtle">Use the + button to add a new rule.</span>
+    </div>
+    {% if recurring_rules %}
+    <ul class="transaction-list">
+      {% for rule in recurring_rules %}
+      <li class="transaction-item" style="align-items: flex-start; flex-direction: column; gap: 6px; opacity: {{ '0.55' if not rule.is_active else '1' }};">
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 10px;">
+          <div>
+            <p class="transaction-title">
+              {{ rule.category.name if rule.category else 'Uncategorized' }}
+              {% if rule.household_id %}
+              <span style="margin-left: 6px; font-size: 0.75rem; font-weight: 800; color: #0f6e56; background: #e1f5ee; border-radius: 999px; padding: 2px 8px;">
+                {{ rule.household.name }}
+              </span>
+              {% endif %}
+              {% if not rule.is_active %}
+              <span style="margin-left: 4px; font-size: 0.75rem; font-weight: 800; color: var(--warn); background: #fde9ca; border-radius: 999px; padding: 2px 8px;">Paused</span>
+              {% endif %}
+            </p>
+            <p class="transaction-meta">
+              {{ rule.frequency.capitalize() }} · starts {{ rule.start_date.strftime('%Y-%m-%d') }}{% if rule.end_date %} · ends {{ rule.end_date.strftime('%Y-%m-%d') }}{% endif %}
+            </p>
+          </div>
+          <strong class="amount-{{ rule.type }}" style="white-space: nowrap; font-size: 1.05rem;">
+            {{ '+' if rule.type == 'income' else '-' }}${{ '{:,.2f}'.format(rule.amount) }}
+          </strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <p class="transaction-meta">
+            Next: <strong style="color: var(--text);">{{ next_occurrences[rule.id].strftime('%Y-%m-%d') if next_occurrences[rule.id] else 'None' }}</strong>
+          </p>
+          <div class="transaction-actions">
+            <form action="{{ url_for('main.toggle_recurring', recurring_id=rule.id) }}" method="POST">
+              <button type="submit" class="inline-link">{{ 'Resume' if not rule.is_active else 'Pause' }}</button>
+            </form>
+            <form action="{{ url_for('main.delete_recurring', recurring_id=rule.id) }}?delete_future=false" method="POST">
+              <button type="submit" class="inline-link danger">Delete rule</button>
+            </form>
+            <form action="{{ url_for('main.delete_recurring', recurring_id=rule.id) }}?delete_future=true" method="POST">
+              <button type="submit" class="inline-link danger">Delete + future</button>
+            </form>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No recurring rules yet. Use the + button to create one.</p>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Next 30 days</h2>
+    </div>
+    {% if preview %}
+    <ul class="transaction-list">
+      {% for item in preview %}
+      <li class="transaction-item">
+        <div>
+          <p class="transaction-title">{{ item.description or 'Recurring ' ~ item.type }}</p>
+          <p class="transaction-meta">{{ item.date }} · {{ item.category_name }}</p>
+        </div>
+        <div class="transaction-right">
+          <strong class="amount-{{ item.type }}">{{ '+' if item.type == 'income' else '-' }}${{ '{:,.2f}'.format(item.amount) }}</strong>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No recurring activity scheduled for the next 30 days.</p>
+    {% endif %}
+  </section>
+
+  {# FAB #}
+  <button type="button" class="fab-button"
+          data-open-transaction-modal aria-label="Add recurring transaction">+</button>
+
+  {# Modal — recurring fields always visible, make_recurring pre-set to on #}
+  <div id="transaction-modal" class="modal-shell" aria-hidden="true">
+    <div class="modal-backdrop" data-close-transaction-modal></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Add recurring transaction">
+
+      <div class="modal-head">
+        <h3>Add Recurring Transaction</h3>
+        <button type="button" class="close-btn"
+                data-close-transaction-modal aria-label="Close">×</button>
+      </div>
+
+      <form
+        hx-post="{{ url_for('main.add_transaction') }}"
+        hx-target="this"
+        hx-swap="none"
+        class="transaction-form"
+      >
+        <input type="hidden" name="active_scope" value="personal">
+        <input type="hidden" name="active_household_id" value="">
+        <input type="hidden" name="date" value="{{ today.isoformat() }}">
+        <input type="hidden" name="make_recurring" value="on">
+
+        <div class="form-group">
+          <label class="field-label" for="modal-amount">Amount</label>
+          <input id="modal-amount" type="number" name="amount"
+                 step="0.01" min="0.01" required
+                 class="amount-input" placeholder="0.00">
+          <div class="chip-row" style="margin-top: 8px;">
+            <button type="button" class="chip" data-quick-amount="10">$10</button>
+            <button type="button" class="chip" data-quick-amount="25">$25</button>
+            <button type="button" class="chip" data-quick-amount="50">$50</button>
+            <button type="button" class="chip" data-quick-amount="100">$100</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label">Type</label>
+          <div class="chip-row" id="type-toggle">
+            <button type="button" class="chip is-selected"
+                    data-type="expense" data-transaction-type="expense">Expense</button>
+            <button type="button" class="chip"
+                    data-type="income" data-transaction-type="income">Income</button>
+            <input type="hidden" name="type" value="expense">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="modal-household">Assign to</label>
+          <select name="household_id" id="modal-household">
+            <option value="">Personal</option>
+            {% for h in current_user.households %}
+            <option value="{{ h.household_id }}">{{ h.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="modal-category">Category</label>
+          <select id="modal-category" name="category" required>
+            <option value="" disabled selected>Select a category</option>
+            {% for cat in transaction_categories %}
+            <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="modal-description">
+            Description
+            <span class="card-subtle" style="font-weight: 600;">— optional</span>
+          </label>
+          <input id="modal-description" type="text" name="description"
+                 placeholder="What is this for?">
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="modal-frequency">Frequency</label>
+          <select name="frequency" id="modal-frequency">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="modal-start-date">Start date</label>
+          <input type="date" name="start_date" id="modal-start-date"
+                 value="{{ today.isoformat() }}">
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="modal-end-date">
+            End date
+            <span class="card-subtle" style="font-weight: 600;">— optional</span>
+          </label>
+          <input type="date" name="end_date" id="modal-end-date">
+        </div>
+
+        <button type="submit" class="btn-primary btn-block">Save recurring rule</button>
+      </form>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const body = document.body;
+
+  function openModal() {
+    const modal = document.getElementById('transaction-modal');
+    if (!modal) return;
+    modal.classList.add('is-open');
+    body.classList.add('modal-open');
+    const amount = modal.querySelector('input[name="amount"]');
+    if (amount) amount.focus();
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('transaction-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    body.classList.remove('modal-open');
+  }
+
+  function showToast(message, type = 'success') {
+    const region = document.getElementById('toast-region');
+    if (!region || !message) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    region.appendChild(toast);
+    window.setTimeout(() => {
+      toast.classList.add('is-out');
+      window.setTimeout(() => toast.remove(), 220);
+    }, 2600);
+  }
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-open-transaction-modal]')) openModal();
+    if (e.target.closest('[data-close-transaction-modal]')) closeModal();
+
+    const quickBtn = e.target.closest('[data-quick-amount]');
+    if (quickBtn) {
+      const input = document.getElementById('modal-amount');
+      if (input) { input.value = quickBtn.dataset.quickAmount; input.focus(); }
+    }
+
+    const typeChip = e.target.closest('[data-transaction-type]');
+    if (typeChip) {
+      const toggle = document.getElementById('type-toggle');
+      if (!toggle) return;
+      toggle.querySelector('input[type="hidden"]').value = typeChip.dataset.transactionType;
+      toggle.querySelectorAll('.chip').forEach(c =>
+        c.classList.toggle('is-selected', c === typeChip)
+      );
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // On success: show toast, close modal, reload to display new rule
+  document.body.addEventListener('dashboard:transaction-added', e => {
+    showToast(e.detail?.message || 'Rule saved.', e.detail?.level || 'success');
+    if (e.detail?.level === 'success') {
+      closeModal();
+      window.setTimeout(() => window.location.reload(), 800);
+    }
+  });
+
+  document.body.addEventListener('htmx:responseError', () => {
+    showToast('Something went wrong. Please try again.', 'danger');
+  });
+})();
+</script>
+{% endblock %}
