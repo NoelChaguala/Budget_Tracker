@@ -14,7 +14,8 @@
   <a href="{{ url_for('main.personal_dashboard') }}" class="brand-link">BudgetTracker</a>
   <nav class="top-nav-links">
     <a href="{{ url_for('main.personal_dashboard') }}" class="top-nav-link {% if request.endpoint in ['main.personal_dashboard', 'main.household_dashboard'] %}active{% endif %}">Dashboard</a>
-    <a href="{{ url_for('main.create_budget') }}" class="top-nav-link {% if request.endpoint == 'main.create_budget' %}active{% endif %}">Budgets</a>
+    <a href="{{ url_for('main.view_budgets') }}" class="top-nav-link {% if request.endpoint in ['main.view_budgets', 'main.add_budget'] %}active{% endif %}">Budgets</a>
+    <a href="{{ url_for('main.recurring_page') }}" class="top-nav-link {% if request.endpoint == 'main.recurring_page' %}active{% endif %}">Recurring</a>
     <a href="{{ url_for('main.reports_page') }}" class="top-nav-link {% if request.endpoint == 'main.reports_page' %}active{% endif %}">Reports</a>
     <a href="{{ url_for('main.create_household') }}" class="top-nav-link {% if request.endpoint == 'main.create_household' %}active{% endif %}">Create Household</a>
     <a href="{{ url_for('main.join_household') }}" class="top-nav-link {% if request.endpoint == 'main.join_household' %}active{% endif %}">Join Household</a>

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Recurring Transactions — Budget Tracker{% endblock %}
+
+{% block content %}
+<div id="dashboard-content" class="dashboard-content" data-scope="personal">
+  <div class="scope-toggle-wrap">
+    <div class="scope-toggle">
+      <button class="scope-pill" hx-get="{{ url_for('main.personal_dashboard') }}">Personal</button>
+      {% for h in current_user.households %}
+      <button class="scope-pill" hx-get="{{ url_for('main.household_dashboard', household_id=h.household_id) }}">{{ h.name }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    <h1 class="page-title">Recurring Transactions</h1>
+    <p class="page-subtitle">Manage repeating income and expense rules for personal and household budgets.</p>
+  </div>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Active recurring rules</h2>
+      <span class="card-subtle">Add new rules from the dashboard.</span>
+    </div>
+    {% if recurring_rules %}
+    <ul class="transaction-list">
+      {% for rule in recurring_rules %}
+      <li class="transaction-item{% if not rule.is_active %} is-paused{% endif %}" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 10px;">
+          <div>
+            <p class="transaction-title">
+              {{ rule.category.name if rule.category else 'Uncategorized' }}
+              {% if not rule.is_active %}<span style="margin-left: 6px; font-size: 0.75rem; font-weight: 800; color: var(--warn); background: #fde9ca; border-radius: 999px; padding: 2px 8px;">Paused</span>{% endif %}
+            </p>
+            <p class="transaction-meta">{{ rule.frequency.capitalize() }} · starts {{ rule.start_date.strftime('%Y-%m-%d') }}{% if rule.end_date %} · ends {{ rule.end_date.strftime('%Y-%m-%d') }}{% endif %}</p>
+          </div>
+          <strong class="amount-{{ rule.type }}" style="white-space: nowrap; font-size: 1.05rem;">
+            {{ '+' if rule.type == 'income' else '-' }}${{ '{:,.2f}'.format(rule.amount) }}
+          </strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <p class="transaction-meta">
+            Next: <strong style="color: var(--text);">{{ next_occurrences[rule.id].strftime('%Y-%m-%d') if next_occurrences[rule.id] else 'None' }}</strong>
+          </p>
+          <div class="transaction-actions">
+            <form action="{{ url_for('main.toggle_recurring', recurring_id=rule.id) }}" method="POST">
+              <button type="submit" class="inline-link">{{ 'Resume' if not rule.is_active else 'Pause' }}</button>
+            </form>
+            <form action="{{ url_for('main.delete_recurring', recurring_id=rule.id) }}?delete_future=false" method="POST">
+              <button type="submit" class="inline-link danger">Delete rule</button>
+            </form>
+            <form action="{{ url_for('main.delete_recurring', recurring_id=rule.id) }}?delete_future=true" method="POST">
+              <button type="submit" class="inline-link danger">Delete + future</button>
+            </form>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No recurring rules found. Create one from the add transaction modal.</p>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Next 30 days</h2>
+    </div>
+    {% if preview %}
+    <ul class="transaction-list">
+      {% for item in preview %}
+      <li class="transaction-item">
+        <div>
+          <p class="transaction-title">{{ item.description or 'Recurring ' ~ item.type }}</p>
+          <p class="transaction-meta">{{ item.date }} · {{ item.category_name }}</p>
+        </div>
+        <div class="transaction-right">
+          <strong class="amount-{{ item.type }}">{{ '+' if item.type == 'income' else '-' }}${{ '{:,.2f}'.format(item.amount) }}</strong>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No recurring activity scheduled for the next 30 days.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const body = document.body;
+
+  function showToast(message, type = "success") {
+    const region = document.getElementById("toast-region");
+    if (!region || !message) return;
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    region.appendChild(toast);
+    window.setTimeout(() => {
+      toast.classList.add("is-out");
+      window.setTimeout(() => toast.remove(), 220);
+    }, 2600);
+  }
+
+  document.body.addEventListener("htmx:responseError", () => {
+    showToast("Something went wrong. Please try again.", "danger");
+  });
+})();
+</script>
+{% endblock %}

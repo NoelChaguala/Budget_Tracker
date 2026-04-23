@@ -85,6 +85,19 @@
       if (categoryButton) {
         selectCategory(categoryButton.dataset.categoryId);
       }
+
+      const recurringToggle = target.closest("#recurring-toggle");
+      if (recurringToggle) {
+        const recurringOptions = document.getElementById("recurring-options");
+        const makeRecurring = document.getElementById("modal_make_recurring");
+        if (recurringOptions && makeRecurring) {
+          const isVisible = recurringOptions.classList.toggle("hidden");
+          makeRecurring.value = isVisible ? "off" : "on";
+          if (!isVisible) {
+            makeRecurring.value = "on";
+          }
+        }
+      }
     });
 
     document.addEventListener("keydown", (event) => {

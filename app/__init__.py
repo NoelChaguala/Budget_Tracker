@@ -29,6 +29,9 @@ def create_app():
     from .main import bp as main_bp
     app.register_blueprint(main_bp)
 
+    from .category_routes import bp_categories
+    app.register_blueprint(bp_categories)
+
     # Create database tables
     with app.app_context():
         db.create_all()

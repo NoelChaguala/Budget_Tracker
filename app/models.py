@@ -112,6 +112,46 @@ class Category(db.Model):
         return f"<Category {self.name}>"
 
 
+class RecurringTransaction(db.Model):
+    __tablename__ = "recurring_transaction"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(200), nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=False)
+    type = db.Column(db.String(10), nullable=False)
+    frequency = db.Column(db.String(10), nullable=False)
+    start_date = db.Column(db.Date, nullable=False, default=date.today)
+    end_date = db.Column(db.Date, nullable=True)
+    last_generated_date = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    user = db.relationship("User", backref="recurring_transactions", lazy=True)
+    household = db.relationship("Household", backref="recurring_transactions", lazy=True)
+    category = db.relationship("Category", backref="recurring_transactions", lazy=True)
+    transactions = db.relationship(
+        "Transaction",
+        backref="recurring_rule",
+        lazy=True,
+        foreign_keys="Transaction.recurring_id"
+    )
+
+    __table_args__ = (
+        Index("ix_recurring_user_id", "user_id"),
+        Index("ix_recurring_household_id", "household_id"),
+        Index("ix_recurring_is_active", "is_active"),
+        Index("ix_recurring_last_generated_date", "last_generated_date"),
+    )
+
+    def is_personal(self):
+        return self.household_id is None
+
+    def __repr__(self):
+        scope = "Personal" if self.is_personal() else "Household"
+        return f"<RecurringTransaction {self.amount} {self.frequency} ({scope})>"
+
+
 # -------------------
 # Transaction Model
 # personal: user_id set, household_id NULL
@@ -129,6 +169,10 @@ class Transaction(db.Model):
     household_id = db.Column(db.Integer, db.ForeignKey("household.household_id"), nullable=True)  # NULL = personal
     category_id = db.Column(db.Integer, db.ForeignKey("category.category_id"), nullable=True)
     recurring_id = db.Column(db.Integer, db.ForeignKey("recurring_transaction.id"), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("recurring_id", "date", name="uq_recurring_date"),
+    )
 
     def is_personal(self):
         return self.household_id is None

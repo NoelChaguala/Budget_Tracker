@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Add Budget — Budget Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard-content">
+
+  <div>
+    <h1 class="page-title">Add Budget</h1>
+    <p class="page-subtitle">Set a spending limit for a category this month.</p>
+  </div>
+
+  <section class="dashboard-card">
+    {% if errors %}
+    {% for error in errors %}
+    <div class="flash flash-danger">{{ error }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('main.add_budget') }}">
+
+      <div class="form-group">
+        <label for="scope">Scope</label>
+        <select name="scope" id="scope">
+          <option value="personal">Personal</option>
+          {% for h in households %}
+          <option value="{{ h.household_id }}">{{ h.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="category_id">Category</label>
+        <select name="category_id" id="category_id">
+          <option value="" disabled selected>Select a category</option>
+          <optgroup label="Personal" id="personal-categories">
+            {% for cat in personal_categories %}
+            <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </optgroup>
+          {% for h in households %}
+          <optgroup label="{{ h.name }}" id="household-categories-{{ h.household_id }}" style="display:none;">
+            {% for cat in household_categories[h.household_id] %}
+            <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="limit_amount">Monthly Limit</label>
+        <input type="number" name="limit_amount" id="limit_amount"
+               min="0.01" step="0.01" placeholder="0.00" class="amount-input">
+      </div>
+
+      <div class="form-group">
+        <label for="month">Month</label>
+        <input type="month" name="month" id="month" value="{{ default_month }}">
+      </div>
+
+      <div class="form-group">
+        <label for="description">Notes <span class="form-hint" style="display:inline;">— optional</span></label>
+        <input type="text" name="description" id="description" placeholder="e.g. Keep groceries lean this month">
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Save budget</button>
+        <a href="{{ url_for('main.view_budgets') }}" class="btn-secondary">Cancel</a>
+      </div>
+
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const scopeSelect = document.getElementById('scope');
+  const personalGroup = document.getElementById('personal-categories');
+  const householdGroups = document.querySelectorAll('[id^="household-categories-"]');
+
+  function updateCategories() {
+    const val = scopeSelect.value;
+    if (val === 'personal') {
+      personalGroup.style.display = '';
+      householdGroups.forEach(g => g.style.display = 'none');
+    } else {
+      personalGroup.style.display = 'none';
+      householdGroups.forEach(g => {
+        g.style.display = g.id === `household-categories-${val}` ? '' : 'none';
+      });
+    }
+    document.getElementById('category_id').value = '';
+  }
+
+  scopeSelect.addEventListener('change', updateCategories);
+})();
+</script>
+{% endblock %}

@@ -3,50 +3,221 @@
 {% block title %}Add Transaction — Budget Tracker{% endblock %}
 
 {% block content %}
-<h1 class="page-title">Add Transaction</h1>
+<div class="dashboard-content">
+  <div>
+    <h1 class="page-title">Add Transaction</h1>
+    <p class="page-subtitle">Record a new income or expense.</p>
+  </div>
 
-<div class="card" style="max-width: 420px;">
-  <form method="POST">
-    <div class="form-group">
-      <label for="amount">Amount:</label>
-      <input type="number" step="0.01" name="amount" id="amount" required>
-    </div>
-    <div class="form-group">
-      <label for="description">Description:</label>
-      <input type="text" name="description" id="description" required>
-    </div>
-    <div class="form-group">
-      <label for="type">Type:</label>
-      <select name="type" id="type" required>
-        <option value="income">Income</option>
-        <option value="expense">Expense</option>
-      </select>
-    </div>
-<div class="form-group">
-      <label for="category">Category:</label>
-      <select name="category" id="category" required>
-        <option value="">-- Select Category --</option>
-        {% for cat in allowed_categories %}
-        <option value="{{ cat.category_id }}">
-          {% if cat.parent_id %}
-          {{ cat.parent.name }} > {{ cat.name }}
-          {% else %}
-          {{ cat.name }}
-          {% endif %}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="household_id">Assign To:</label>
-      <select name="household_id" id="household_id">
-        <option value="">Personal</option>
-        {% for household in current_user.households %}
-        <option value="{{ household.household_id }}">{{ household.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="btn-login">Add Transaction</button>
-  </form>
+  <section class="dashboard-card" style="max-width: 480px;">
+    <form method="POST" id="transaction-form">
+      <input type="hidden" name="active_scope" id="active_scope" value="personal">
+      <input type="hidden" name="active_household_id" id="active_household_id" value="">
+
+      <div class="form-group">
+        <label>Amount</label>
+        <input type="number" step="0.01" name="amount" id="amount"
+               class="amount-input" placeholder="0.00" required>
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" name="description" id="description"
+               placeholder="What was this for?">
+      </div>
+
+      <div class="form-group">
+        <label>Type</label>
+        <div class="chip-row" id="type-toggle">
+          <button type="button" class="chip is-selected" data-type="expense">Expense</button>
+          <button type="button" class="chip" data-type="income">Income</button>
+          <input type="hidden" name="type" id="type-input" value="expense">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="household_id">Assign to</label>
+        <select name="household_id" id="household_id">
+          <option value="">Personal</option>
+          {% for h in current_user.households %}
+          <option value="{{ h.household_id }}">{{ h.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="category">Category</label>
+        <select name="category" id="category" required>
+          <option value="" disabled selected>Select a category</option>
+          {% for cat in personal_categories %}
+          <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">
+          Category missing?
+          <button type="button" class="inline-link" id="show-new-cat">Add one</button>
+        </span>
+        <div id="new-cat-row" style="display: none; margin-top: 8px; gap: 8px; align-items: center;">
+          <input type="text" id="new-cat-name" placeholder="Category name" style="flex: 1;">
+          <button type="button" class="btn-secondary" id="save-new-cat">Save</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="date">Date</label>
+        <input type="date" name="date" id="date"
+               value="{{ date.today().isoformat() }}" required>
+      </div>
+
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text);">
+          <input type="checkbox" name="make_recurring" id="make_recurring">
+          Make this recurring
+        </label>
+      </div>
+
+      <div id="recurring-options" style="display: none;">
+        <div class="form-group">
+          <label for="frequency">Frequency</label>
+          <select name="frequency" id="frequency">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="start_date">Start date</label>
+          <input type="date" name="start_date" id="start_date"
+                 value="{{ date.today().isoformat() }}">
+        </div>
+        <div class="form-group">
+          <label for="end_date">
+            End date
+            <span class="form-hint" style="display: inline;">— optional</span>
+          </label>
+          <input type="date" name="end_date" id="end_date">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Save transaction</button>
+        <a href="{{ url_for('main.personal_dashboard') }}" class="btn-secondary">Cancel</a>
+      </div>
+
+    </form>
+  </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  // Category data indexed by scope key — server-rendered so it's always fresh
+  const categoryData = {
+    personal: [
+      {% for cat in personal_categories %}
+      { id: "{{ cat.category_id }}", name: {{ cat.name | tojson }} },
+      {% endfor %}
+    ],
+    {% for h in current_user.households %}
+    "{{ h.household_id }}": [
+      {% for cat in household_categories[h.household_id] %}
+      { id: "{{ cat.category_id }}", name: {{ cat.name | tojson }} },
+      {% endfor %}
+    ],
+    {% endfor %}
+  };
+
+  // --- Type chips ---
+  const typeInput = document.getElementById('type-input');
+  document.getElementById('type-toggle').addEventListener('click', e => {
+    const chip = e.target.closest('[data-type]');
+    if (!chip) return;
+    typeInput.value = chip.dataset.type;
+    document.querySelectorAll('#type-toggle .chip').forEach(c =>
+      c.classList.toggle('is-selected', c === chip)
+    );
+  });
+
+  // --- Category dropdown rebuild on scope change ---
+  const householdSelect = document.getElementById('household_id');
+  const categorySelect = document.getElementById('category');
+  const activeScopeInput = document.getElementById('active_scope');
+  const activeHouseholdInput = document.getElementById('active_household_id');
+
+  function rebuildCategories(scopeKey, selectValue = '') {
+    const cats = categoryData[scopeKey] || [];
+    categorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
+    cats.forEach(cat => {
+      const opt = new Option(cat.name, cat.id);
+      categorySelect.appendChild(opt);
+    });
+    if (selectValue) categorySelect.value = selectValue;
+  }
+
+  function syncCategoryScope() {
+    const val = householdSelect.value;
+    if (!val) {
+      activeScopeInput.value = 'personal';
+      activeHouseholdInput.value = '';
+      rebuildCategories('personal');
+    } else {
+      activeScopeInput.value = 'household';
+      activeHouseholdInput.value = val;
+      rebuildCategories(val);
+    }
+  }
+
+  householdSelect.addEventListener('change', syncCategoryScope);
+  syncCategoryScope();
+
+  // --- Recurring checkbox reveals frequency/date fields ---
+  const recurringCheckbox = document.getElementById('make_recurring');
+  const recurringOptions = document.getElementById('recurring-options');
+
+  recurringCheckbox.addEventListener('change', function () {
+    recurringOptions.style.display = this.checked ? 'block' : 'none';
+  });
+
+  // --- Inline category creation ---
+  const showBtn = document.getElementById('show-new-cat');
+  const newCatRow = document.getElementById('new-cat-row');
+  const newCatName = document.getElementById('new-cat-name');
+  const saveCatBtn = document.getElementById('save-new-cat');
+  const inlineUrl = {{ url_for('categories.create_category_inline') | tojson }};
+
+  showBtn.addEventListener('click', () => {
+    newCatRow.style.display = 'flex';
+    newCatName.focus();
+  });
+
+  saveCatBtn.addEventListener('click', async () => {
+    const name = newCatName.value.trim();
+    if (!name) return;
+    const scope = householdSelect.value || 'personal';
+
+    const res = await fetch(inlineUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, scope }),
+    });
+
+    if (!res.ok) return;
+    const cat = await res.json();
+
+    // Persist into local data so scope switches keep it
+    if (!categoryData[scope]) categoryData[scope] = [];
+    if (!categoryData[scope].find(c => c.id === String(cat.id))) {
+      categoryData[scope].push({ id: String(cat.id), name: cat.name });
+    }
+
+    // Rebuild and select the new category
+    rebuildCategories(scope, String(cat.id));
+
+    newCatName.value = '';
+    newCatRow.style.display = 'none';
+  });
+})();
+</script>
 {% endblock %}

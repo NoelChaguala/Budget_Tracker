@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Budgets — Budget Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard-content">
+
+  <div>
+    <h1 class="page-title">Budgets</h1>
+    <p class="page-subtitle">Track spending limits across your personal and household accounts.</p>
+  </div>
+
+  {% macro budget_list(report) %}
+    {% if report %}
+    <ul class="transaction-list">
+      {% for b in report %}
+      {% set status = 'safe' if b.percent < 75 else ('warning' if b.percent < 100 else 'danger') %}
+      <li class="budget-row">
+        <div class="budget-row-top">
+          <span class="budget-name">{{ b.category }}</span>
+          <span class="budget-values">${{ '{:,.2f}'.format(b.spent) }} / ${{ '{:,.2f}'.format(b.limit) }}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill {{ status }}" style="--target: {{ b.percent }}%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+          <p class="budget-meta">
+            {% if b.remaining >= 0 %}
+              ${{ '{:,.2f}'.format(b.remaining) }} remaining · {{ b.month.strftime('%B %Y') }}
+            {% else %}
+              ${{ '{:,.2f}'.format(b.remaining|abs) }} over limit · {{ b.month.strftime('%B %Y') }}
+            {% endif %}
+          </p>
+          <div class="transaction-actions">
+            <a href="{{ url_for('main.edit_budget', budget_id=b.budget_id) }}"
+               class="inline-link">Edit</a>
+            <form method="POST"
+                  action="{{ url_for('main.delete_budget', budget_id=b.budget_id) }}"
+                  onsubmit="return confirm('Delete this budget?')">
+              <button type="submit" class="inline-link danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No budgets set. <a href="{{ url_for('main.add_budget') }}" class="muted-link">Add one</a>.</p>
+    {% endif %}
+  {% endmacro %}
+
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>Personal</h2>
+      <a href="{{ url_for('main.add_budget') }}" class="muted-link">+ Add budget</a>
+    </div>
+    {{ budget_list(personal_report) }}
+  </section>
+
+  {% for item in household_reports %}
+  <section class="dashboard-card">
+    <div class="card-header">
+      <h2>{{ item.household.name }}</h2>
+      <a href="{{ url_for('main.add_budget') }}" class="muted-link">+ Add budget</a>
+    </div>
+    {{ budget_list(item.report) }}
+  </section>
+  {% endfor %}
+
+</div>
+{% endblock %}
